@@ -1,0 +1,691 @@
+load "iovtk"
+load "gmsh"
+
+int r = 1;
+
+int nx        = 100*r;
+int nyAire    = 60*r;
+int nyForjado = 5*r;
+int nyEPS     = 2*r;
+int nyBaldosa = 1*r;
+
+// Orden de etiquetas en square:
+// [inferior, derecha, superior, izquierda]
+
+int[int] labAire     = [5, 2, 6, 2];
+int[int] labForjado  = [6, 3, 7, 3];
+int[int] labEPS      = [7, 3, 8, 3];
+int[int] labBaldosa  = [8, 3, 4, 3];
+
+// Cámara de aire: 0 <= x <= 1000; -600 <= y <= 0
+mesh mallaAire = square(
+    nx, nyAire,
+    [1000*x, -600.0 + 600.0*y],
+    label=labAire,
+    region=10,
+    flags=1
+);
+
+// Forjado: 0 <= y <= 25
+mesh mallaForjado = square(
+    nx, nyForjado,
+    [1000*x, 25.0*y],
+    label=labForjado,
+    region=20,
+    flags=1
+);
+
+// EPS: 25 <= y <= 31
+mesh mallaEPS = square(
+    nx, nyEPS,
+    [1000*x, 25.0 + 6.0*y],
+    label=labEPS,
+    region=30,
+    flags=1
+);
+
+// Baldosa: 31 <= y <= 34
+mesh mallaBaldosa = square(
+    nx, nyBaldosa,
+    [1000*x, 31.0 + 3.0*y],
+    label=labBaldosa,
+    region=40,
+    flags=1
+);
+
+// Ensamblaje de los cuatro rectángulos
+mesh mallatotal =
+      mallaAire
+    + mallaForjado
+    + mallaEPS
+    + mallaBaldosa;
+
+plot(mallatotal, wait=1, cmm="Malla estructurada multicapa", ps="malla_estructurada_multicapa.eps");
+savemesh(mallatotal, "mallatotal.mesh");
+
+fespace Vh0(mallatotal,P0);
+
+Vh0 reg=region;
+
+int material1 = reg(75,32);// plaqueta o baldosa ceramica 3 cm
+int material2 = reg(75,28); // EPS 6cm
+int material3 = reg(75,10); // entrevigado 25 cm
+
+int aireroom = reg(75,-100);// un punto del aire del room
+
+plot (reg, wait=1,fill=1);
+
+int iter=0;
+
+real T0 = 27. + 273.15;  // temperatura ambiente en kelvin
+
+fespace Vht(mallatotal,P1);
+
+
+Vht T,v,Told,Tcubierta,Tbaldxps,Txpsforjado,Tforjadoaire,Taire05msuelo,
+Taire1msuelo,Taire2msuelo,Taire3msuelo,Taire4msuelo,B,Tc,error;
+
+Vh0 aire, k;
+
+real k1,k2,k3,ka;
+k1=1*0.01; // (W/cm k)
+k2=0.029*0.01; // (W/cm k)
+k3=0.256*0.01; // (W/cm k)
+ka=0.02624*0.01; // AIRE (W/cm k)
+
+
+k = k1*(region==material1)+k2*(region==material2)+k3*(region==material3)+ka*(region==aireroom); 
+
+aire= 1.*(region==aireroom)+
+     0.*(region==material1)+0.*(region==material2)+
+     0.*(region==material3)
+; 
+		
+real sigma = 5.6704*1e-8; //Constante de Stefan-Boltzmann [W/m2.K4]
+sigma=sigma*0.0001; // [W/cm2.K4]
+
+real emisivity = 0.8;
+
+real Tcielo;
+Tcielo=(T0^(1.5))*0.0552; //temperatura cielo en kelvin
+
+cout << " temperatura cielo = " <<Tcielo<<endl;  	
+
+
+real Tsuelo;
+Tsuelo=20.9+273.15; //temperatura suelos
+
+// hext Coeficiente de conveccion 
+real viento = 4.; 
+real hext=5.7+3.8*viento;  // unidades en W/m2 K   
+hext=hext*0.0001;  //  W/cm2 K
+
+real R=0.80; 
+// reflexion 80%,  es asi para que A = 0.20
+
+real A;
+A=1-R; // absortividad
+
+real RADSOLAR= 771;        //  IRRADIANCIA W/(m2) 
+RADSOLAR=RADSOLAR*0.0001;  //  W/(cm2)
+      
+Told = T0;  
+
+problem temp(T,v) = 
+int2d(mallatotal) (k*dx(T)*dx(v)+k*dy(T)*dy(v))
++int1d(mallatotal,4)  (sigma*emisivity*B*T*v) 
+- int1d(mallatotal,4) (sigma*emisivity*B*Tcielo*v)
++int1d(mallatotal,2,3,4) (hext*T*v) 
+-int1d(mallatotal,2,3,4) (hext*T0*v)
+-int1d(mallatotal,4) (A*RADSOLAR*v)
++on (5,T=Tsuelo); 
+
+// =========================================================
+// Formas auxiliares para calcular el residuo algebraico
+// No sustituyen al problem temp
+// =========================================================
+
+// Parte izquierda: matriz del sistema
+varf aTemp(u,v) =
+    int2d(mallatotal)(
+          k*dx(u)*dx(v)
+        + k*dy(u)*dy(v)
+    )
+  + int1d(mallatotal,4)(
+        sigma*emisivity*B*u*v
+    )
+  + int1d(mallatotal,2,3,4)(
+        hext*u*v
+    )
+  + on(5,u=0);
+
+
+// Parte derecha: vector independiente
+varf lTemp(unused,v) =
+    int1d(mallatotal,4)(
+        sigma*emisivity*B*Tcielo*v
+    )
+  + int1d(mallatotal,2,3,4)(
+        hext*T0*v
+    )
+  + int1d(mallatotal,4)(
+        A*RADSOLAR*v
+    )
+  + on(5,unused=Tsuelo);
+
+//Identifica los nodos donde se impone T= Tsuelo
+varf marcaDirichlet(unused,v) =
+    on(5,unused=1);
+
+//Matriz y vectores del sistema lineal
+
+matrix MatT;
+
+real[int] rhsT(Vht.ndof);
+real[int] residuoT(Vht.ndof);
+real[int] rhsLibre(Vht.ndof);
+real[int] libre(Vht.ndof);
+
+// Vector igual a 1 en los nodos de Dirichlet
+// y 0 en los restantes
+real[int] esDirichlet =
+    marcaDirichlet(0,Vht,tgv=1);
+
+// La máscara libre vale 0 en la frontera 5
+// y 1 en los demás nodos
+libre = 1.0;
+libre -= esDirichlet;
+
+
+real ErrorL2 = 1.; 
+real ErrorH1 = 1.;
+
+// Variables adicionales para la convergencia no lineal
+real errorNoLinealRelativo = 1.0;
+real errorRMS = 1.0;
+real normaTemperatura2 = 1.0;
+
+real toleranciaNoLineal = 1.0e-8;
+
+int iterMax = 100;
+
+// Área del dominio, calculada una sola vez
+real areaDominio =
+    int2d(mallatotal)(1.0);
+
+// Archivo para registrar la convergencia
+ofstream archivoConvergencia(
+    "convergencia_no_lineal_r"+r+".csv"
+);
+
+// Encabezados de las columnas
+archivoConvergencia
+    << "iteracion;"
+    << "residuo_algebraico_relativo;"
+    << "error_no_lineal_relativo_L2;"
+    << "error_RMS_K;"
+    << "error_L2;"
+    << "seminorma_H1;"
+    << "norma_H1"
+    << endl;
+ 
+while(sqrt(ErrorL2+ErrorH1) > 1.e-6) 
+{
+	B = (Told^2 + Tcielo^2)*(Told+Tcielo);	
+    temp;  //aqui calcula la temperatura
+	
+    //Ensamblaje de la matriz y del segundo miembro correspondientes al valor actual de B
+    MatT = aTemp(Vht,Vht,solver=sparsesolver);
+    rhsT = lTemp(0,Vht);
+
+
+    //Residuo algebraico: r=A*T - b
+    residuoT = MatT*T[];
+    residuoT -= rhsT;
+
+    //Se eliminan las componentes correspondientes a los nodos de Dirichlet
+    residuoT = residuoT.*libre;
+
+    //Copia del segundo miembro considerando solo los nodos libres
+    rhsLibre = rhsT;
+    rhsLibre = rhsLibre.*libre;
+
+    //norma euclídea del residuo
+    real normaResiduo = sqrt(residuoT'*residuoT);
+
+    //Norma euclídea del segundo miembro
+    real normaRhs = sqrt(rhsLibre'*rhsLibre);
+
+    //Residuo algebraico relativo
+    real residuoAlgebraicoRelativo = normaResiduo/max(normaRhs, 1e-30);
+
+    cout << "Iteracion = " << iter
+     << " ; residuo algebraico relativo = "
+     << residuoAlgebraicoRelativo
+     << endl;
+
+    Tc = T-273.15;
+
+	if ( !(iter % 5)) //cada multiplo de 5 imprime el plot de la linea siguiente
+	plot(Tc,cmm=" temperatura ", value=1);
+	
+	error = T-Told;
+
+    ErrorH1 =
+        int2d(mallatotal)(
+            dx(error)^2+dy(error)^2
+        );
+
+    ErrorL2 =
+        int2d(mallatotal)(
+            error^2
+        );
+
+    normaTemperatura2 =
+        int2d(mallatotal)(
+            T^2
+        );
+
+    errorNoLinealRelativo =
+        sqrt(
+            ErrorL2
+            / max(normaTemperatura2,1.0e-30)
+        );
+
+    errorRMS =
+        sqrt(
+            ErrorL2/areaDominio
+        );
+
+    cout << "Error seminorma H1 = "
+        << sqrt(ErrorH1) << endl;
+
+    cout << "Error L2 = "
+        << sqrt(ErrorL2) << endl;
+
+    cout << "Error norma H1 = "
+        << sqrt(ErrorL2+ErrorH1) << endl;
+
+    cout << "Error no lineal relativo L2 = "
+        << errorNoLinealRelativo << endl;
+
+    cout << "Error RMS entre iteraciones = "
+        << errorRMS << " K" << endl;
+
+    Told = T;
+
+    //Guardar los datos de convergencia en el archivo
+    archivoConvergencia
+        << iter << ";"
+        << residuoAlgebraicoRelativo << ";"
+        << errorNoLinealRelativo << ";"
+        << errorRMS << ";"
+        << sqrt(ErrorL2) << ";"
+        << sqrt(ErrorH1) << ";"
+        << sqrt(ErrorL2+ErrorH1)
+        << endl;
+ 
+    x=300;
+    y=34;
+    Tcubierta=T(x,y)-273.15; 
+    cout << " temperatura en cubierta = " <<Tcubierta<<endl;  	
+
+    x=300;
+    y=31;
+    Tbaldxps=T(x,y)-273.15; 
+    cout << " temperatura interfase baldosa con EPS= " <<Tbaldxps<<endl;  	
+
+    x=300;
+    y=25;
+    Txpsforjado=T(x,y)-273.15; 
+    cout << " temperatura interfase EPS con forjado= " <<Txpsforjado<<endl; 
+
+    x=300;
+    y=0;
+    Tforjadoaire=T(x,y)-273.15; 
+    cout << " temperatura interfase forjado con aire espacio interior= " <<Tforjadoaire<<endl;
+
+
+    x=300;
+    y=-200;
+    Taire4msuelo=T(x,y)-273.15; 
+    cout << " temperatura en aire habitacion a 4m del suelo = " <<Taire4msuelo<<endl;  
+
+    x=300;
+    y=-300;
+    Taire3msuelo=T(x,y)-273.15; 
+    cout << " temperatura en aire habitacion a 3m del suelo = " <<Taire3msuelo<<endl;  
+
+    x=300;
+    y=-400;
+    Taire2msuelo=T(x,y)-273.15; 
+    cout << " temperatura en aire habitacion a 2m del suelo = " <<Taire2msuelo<<endl;  
+
+
+    x=300;
+    y=-500;
+    Taire1msuelo=T(x,y)-273.15; 
+    cout << " temperatura en aire habitacion a 1m del suelo = " <<Taire1msuelo<<endl;  
+
+    x=300;
+    y=-550;
+    Taire05msuelo=T(x,y)-273.15; 
+    cout << " temperatura en aire habitacion a 0,5 m del suelo = " <<Taire05msuelo<<endl;  
+    iter++;
+
+}
+
+
+// =========================================================
+// POSTPROCESADO DESPUÉS DE LA CONVERGENCIA
+// Convenio de signos:
+//   flujo positivo  = calor que sale del dominio
+//   flujo negativo  = calor que entra en el dominio
+// =========================================================
+
+
+// ---------------------------------------------------------
+// 1. TEMPERATURAS REPRESENTATIVAS
+// ---------------------------------------------------------
+
+real tempCubiertaCentro =
+    T(300.0,34.0)-273.15;
+
+real tempBaldosaEPS =
+    T(300.0,31.0)-273.15;
+
+real tempEPSForjado =
+    T(300.0,25.0)-273.15;
+
+real tempForjadoAire =
+    T(300.0,0.0)-273.15;
+
+real temperaturaMinima =
+    T[].min-273.15;
+
+real temperaturaMaxima =
+    T[].max-273.15;
+
+
+// ---------------------------------------------------------
+// 2. COMPROBACIÓN DE LAS LONGITUDES DE LAS FRONTERAS
+// Las longitudes se expresan en centímetros
+// ---------------------------------------------------------
+
+real longitudParedes =
+    int1d(mallatotal,2,3)(1.0);
+
+real longitudCubierta =
+    int1d(mallatotal,4)(1.0);
+
+real longitudSuelo =
+    int1d(mallatotal,5)(1.0);
+
+cout << endl;
+cout << "=============================================" << endl;
+cout << "LONGITUDES DE LAS FRONTERAS" << endl;
+cout << "=============================================" << endl;
+
+cout << "Longitud total paredes = "
+     << longitudParedes
+     << " cm" << endl;
+
+cout << "Longitud cubierta = "
+     << longitudCubierta
+     << " cm" << endl;
+
+cout << "Longitud suelo = "
+     << longitudSuelo
+     << " cm" << endl;
+
+
+// ---------------------------------------------------------
+// 3. FLUJO CONVECTIVO POR LAS PAREDES LATERALES
+// ---------------------------------------------------------
+
+real flujoParedes =
+    int1d(mallatotal,2,3)(
+        hext*(T-T0)
+    );
+
+
+// ---------------------------------------------------------
+// 4. FLUJOS EN LA CUBIERTA
+// ---------------------------------------------------------
+
+// Convección entre la cubierta y el aire exterior
+real flujoConvCubierta =
+    int1d(mallatotal,4)(
+        hext*(T-T0)
+    );
+
+
+// Radiación térmica neta entre la cubierta y el cielo.
+//
+// Se utiliza B*(T-Tcielo) porque este es el término
+// empleado en la última iteración del problema linealizado.
+//
+// En la convergencia:
+//
+// B*(T-Tcielo) aproximadamente igual a T^4-Tcielo^4
+//
+real flujoRadCubierta =
+    int1d(mallatotal,4)(
+        sigma*emisivity*B*(T-Tcielo)
+    );
+
+
+// Radiación solar absorbida.
+// Se guarda como una magnitud positiva.
+real flujoSolarAbsorbido =
+    int1d(mallatotal,4)(
+        A*RADSOLAR
+    );
+
+
+// Flujo neto saliente por la cubierta:
+//
+// convección + radiación térmica - radiación solar absorbida
+//
+real flujoCubierta =
+      flujoConvCubierta
+    + flujoRadCubierta
+    - flujoSolarAbsorbido;
+
+
+// ---------------------------------------------------------
+// 5. FLUJO CONDUCTIVO POR EL SUELO
+// ---------------------------------------------------------
+
+// Se calcula mediante el gradiente normal de la temperatura.
+// Este cálculo puede presentar cierta dependencia de la malla
+// al utilizar elementos P1.
+real flujoSuelo =
+    int1d(mallatotal,5)(
+        -k*(
+              dx(T)*N.x
+            + dy(T)*N.y
+        )
+    );
+
+
+// ---------------------------------------------------------
+// 6. BALANCE ENERGÉTICO
+// ---------------------------------------------------------
+
+// Suma algebraica de todos los flujos.
+//
+// Debe ser aproximadamente cero en régimen estacionario.
+//
+real balanceFlujos =
+      flujoParedes
+    + flujoConvCubierta
+    + flujoRadCubierta
+    - flujoSolarAbsorbido
+    + flujoSuelo;
+
+
+// Escala utilizada para normalizar el error.
+//
+// Los mecanismos de la cubierta se consideran por separado
+// para evitar que su cancelación reduzca artificialmente
+// el denominador.
+real escalaBalance =
+      abs(flujoParedes)
+    + abs(flujoConvCubierta)
+    + abs(flujoRadCubierta)
+    + abs(flujoSolarAbsorbido)
+    + abs(flujoSuelo);
+
+
+// Error relativo en forma decimal
+real errorBalance =
+    abs(balanceFlujos)
+    / max(escalaBalance,1.0e-30);
+
+
+// Error relativo expresado en porcentaje
+real errorBalancePorcentaje =
+    100.0*errorBalance;
+
+
+// ---------------------------------------------------------
+// 7. RESULTADOS EN PANTALLA
+// ---------------------------------------------------------
+
+cout << endl;
+cout << "=============================================" << endl;
+cout << "FLUJOS TERMICOS" << endl;
+cout << "Convenio: positivo = flujo saliente" << endl;
+cout << "=============================================" << endl;
+
+cout << "Flujo paredes = "
+     << 100.0*flujoParedes
+     << " W/m" << endl;
+
+cout << "Conveccion cubierta = "
+     << 100.0*flujoConvCubierta
+     << " W/m" << endl;
+
+cout << "Radiacion termica neta cubierta = "
+     << 100.0*flujoRadCubierta
+     << " W/m" << endl;
+
+cout << "Radiacion solar absorbida = "
+     << 100.0*flujoSolarAbsorbido
+     << " W/m" << endl;
+
+cout << "Flujo neto cubierta = "
+     << 100.0*flujoCubierta
+     << " W/m" << endl;
+
+cout << "Flujo suelo = "
+     << 100.0*flujoSuelo
+     << " W/m" << endl;
+
+cout << "Balance neto = "
+     << 100.0*balanceFlujos
+     << " W/m" << endl;
+
+cout << "Escala del balance = "
+     << 100.0*escalaBalance
+     << " W/m" << endl;
+
+cout << "Error relativo del balance = "
+     << errorBalance
+     << endl;
+
+cout << "Error porcentual del balance = "
+     << errorBalancePorcentaje
+     << " %" << endl;
+
+
+// Comprobación de la potencia solar.
+//
+// Con A=0.20, RADSOLAR=771 W/m2
+// y una cubierta de 10 m:
+//
+// flujoSolarAbsorbido aproximadamente igual a 1542 W/m.
+//
+cout << "Comprobacion solar absorbida = "
+     << 100.0*flujoSolarAbsorbido
+     << " W/m; valor esperado aproximadamente 1542 W/m"
+     << endl;
+
+
+// ---------------------------------------------------------
+// 8. ARCHIVO CSV DE RESULTADOS
+// ---------------------------------------------------------
+
+ofstream archivoResultados(
+    "resultados_malla_r"+r+".csv"
+);
+
+
+// Encabezados del CSV
+archivoResultados
+    << "r;"
+    << "vertices;"
+    << "triangulos;"
+    << "Tmin_C;"
+    << "Tmax_C;"
+    << "T_cubierta_C;"
+    << "T_baldosa_EPS_C;"
+    << "T_EPS_forjado_C;"
+    << "T_forjado_aire_C;"
+    << "longitud_paredes_cm;"
+    << "longitud_cubierta_cm;"
+    << "longitud_suelo_cm;"
+    << "flujo_paredes_W_m;"
+    << "flujo_conv_cubierta_W_m;"
+    << "flujo_rad_neta_cubierta_W_m;"
+    << "flujo_solar_absorbido_W_m;"
+    << "flujo_cubierta_neto_W_m;"
+    << "flujo_suelo_W_m;"
+    << "balance_neto_W_m;"
+    << "escala_balance_W_m;"
+    << "error_balance_relativo;"
+    << "error_balance_porcentaje"
+    << endl;
+
+
+// Fila con los resultados
+archivoResultados
+    << r << ";"
+    << mallatotal.nv << ";"
+    << mallatotal.nt << ";"
+    << temperaturaMinima << ";"
+    << temperaturaMaxima << ";"
+    << tempCubiertaCentro << ";"
+    << tempBaldosaEPS << ";"
+    << tempEPSForjado << ";"
+    << tempForjadoAire << ";"
+    << longitudParedes << ";"
+    << longitudCubierta << ";"
+    << longitudSuelo << ";"
+    << 100.0*flujoParedes << ";"
+    << 100.0*flujoConvCubierta << ";"
+    << 100.0*flujoRadCubierta << ";"
+    << 100.0*flujoSolarAbsorbido << ";"
+    << 100.0*flujoCubierta << ";"
+    << 100.0*flujoSuelo << ";"
+    << 100.0*balanceFlujos << ";"
+    << 100.0*escalaBalance << ";"
+    << errorBalance << ";"
+    << errorBalancePorcentaje
+    << endl;
+
+
+// ---------------------------------------------------------
+// 9. EXPORTACIÓN VTK
+// ---------------------------------------------------------
+
+int[int] vtkorder = [1];
+
+savevtk(
+    "Temperaturaforjado.vtk",
+    mallatotal,
+    T-273.15,
+    order=vtkorder,
+    dataname="temperaturacubierta"
+);
