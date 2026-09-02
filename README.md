@@ -1,4 +1,4 @@
-Repositorio privado asociado al Trabajo Fin de Máster del Máster Universitario en Ingeniería Computacional y Matemática (URV–UOC).
+Repositorio asociado al Trabajo Fin de Máster del Máster Universitario en Ingeniería Computacional y Matemática (URV–UOC).
 
 Contenido
 
