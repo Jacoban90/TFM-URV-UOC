@@ -1,0 +1,310 @@
+load "msh3"
+load "iovtk"
+load "PETSc"
+
+// El monitor de PETSc conserva el historial de convergencia sin volcar
+// al log toda la expansion de macro_ddm.idp.
+verbosity = 0;
+
+// --------------------------------------------------
+// Descomposicion de dominio PETSc + solver directo MUMPS
+// + acoplamiento Boussinesq (flotabilidad) via iteracion de Picard.
+//
+// Idea clave: el termino de flotabilidad beta*g*(T-Tref) solo depende
+// de la funcion de TEST en el momento vertical -- no toca la matriz A,
+// solo el lado derecho (RHS). Por tanto A se factoriza con MUMPS UNA
+// SOLA VEZ (~80 min) y cada iteracion de Picard solo recalcula el RHS
+// y reutiliza la factorizacion cacheada (sol[]=A^-1*rhs es barato en
+// iteraciones sucesivas si A no cambia).
+// --------------------------------------------------
+
+macro dimension()3//
+include "macro_ddm.idp"
+
+macro def(i)[i,i#B,i#C,i#D]//
+macro init(i)[i,i,i,i]//
+macro grad3(a)[dx(a),dy(a),dz(a)]//
+
+func Pk = [P1b3d,P1b3d,P1b3d,P13d];
+
+// --------------------------------------------------
+// Etiquetas
+// --------------------------------------------------
+
+int south        = 1;
+int east         = 2;
+int north        = 3;
+int west         = 4;
+int sky          = 5;
+int floor        = 6;
+int chimney      = 7;
+int chimneyFloor = 8;
+
+// --------------------------------------------------
+// Parametros
+// --------------------------------------------------
+
+real Tamb  = 27.0;
+real Twall = 22.0;
+real Tref  = Tamb;
+
+real rho  = 1.2047;
+real cp   = 1000.7;
+real kAir = 0.024;
+real alphaT = kAir/(rho*cp);
+
+// Viscosidad numerica solo para la inicializacion de Stokes.
+real nuInit = 0.10;
+
+// Boussinesq: coeficiente de expansion termica de gas ideal
+// beta = 1/Tref[K], gravedad estandar. Forma cinematica (sin rho
+// explicito), coherente con que nuInit tampoco lleva rho.
+real betaExp = 1.0/(Tref+273.15);
+real gGrav   = 9.81;
+
+// Perfil logaritmico atmosférico, Sur -> Norte.
+real Uref = 4.0;
+real zref = 10.0;
+real z0   = 0.30;
+
+func real Uin()
+{
+    return Uref*log((z+z0)/z0)/log((zref+z0)/z0);
+}
+
+// -smoke usa un cubo pequeño para comprobar sintaxis y PETSc.
+bool smoke = usedARGV("-smoke") != -1;
+bool partitionOnly = usedARGV("-partition-only") != -1;
+
+// Numero de iteraciones de Picard para el acoplamiento Boussinesq.
+// La iteracion 0 (T=Tamb uniforme) da flotabilidad nula -- coincide
+// con el caso puramente Stokes ya validado. Las siguientes van
+// introduciendo el termico real.
+int nPicard = smoke ? 2 : 6;
+
+mesh3 ThG;
+if(smoke)
+    ThG = cube(4,4,4,[15.0*x,25.0*y,6.0*z]);
+else
+    ThG = readmesh3("Geometry_scaled_repaired.mesh");
+
+// La malla importada puede contener caras internas procedentes de Gmsh.
+// Se retiran antes de construir los subdominios MPI: las superficies físicas
+// exteriores (incluida la chimenea) conservan sus etiquetas.
+if(!smoke)
+    ThG = change(ThG,rmInternalFaces=1);
+
+if(mpirank==0)
+    cout << "STAGE 1: global mesh ready, nt=" << ThG.nt
+         << ", nbe=" << ThG.nbe << endl;
+
+// ThG se conserva para reconstruir una salida VTU única.
+mesh3 Th = ThG;
+
+// Cada proceso ya tiene la malla global completa (no solo rank 0),
+// asi que cada proceso puede construir su propia copia de ThOut/PhOut
+// -- necesario para poder RECIBIR (via broadcast) el campo de
+// temperatura calculado en rank 0 y usarlo como coeficiente de
+// flotabilidad dentro de int3d(Th) en todos los procesos.
+mesh3 ThOut = change(ThG,rmInternalFaces=1);
+fespace PhOut(ThOut,P13d);
+PhOut TfieldGlobal = Tamb;
+
+// Campo de acoplamiento sobre Th (la malla que usa el Stokes),
+// interpolado desde PhOut/ThOut tras cada broadcast. Es una funcion
+// FE normal, NO pasa por MatCreate/PETSc -- solo se usa como
+// coeficiente conocido dentro de la varf, así que no choca con el
+// error de macro_ddm que dio la version totalmente distribuida.
+fespace Wh1(Th,P13d);
+Wh1 TCoupling = Tamb;
+
+Mat A;
+int[int] n2o;
+macro ThN2O()n2o//
+MatCreate(Th,A,Pk);
+
+if(mpirank==0)
+    cout << "STAGE 2: MatCreate/DDM completed on " << mpisize
+         << " MPI processes" << endl;
+
+if(partitionOnly)
+{
+    mpiBarrier(mpiCommWorld);
+    if(mpirank==0)
+        cout << "PARTITION TEST OK" << endl;
+    exit(0);
+}
+
+fespace Wh(Th,Pk);
+Wh<real> def(sol);
+
+// --------------------------------------------------
+// Stokes con flotabilidad: matriz (no depende de TCoupling) y RHS
+// (si depende, via el termino de flotabilidad en la ecuacion w).
+// --------------------------------------------------
+
+varf vStokes(
+    [u,v,w,p],
+    [uu,vv,ww,pp]
+)
+= int3d(Th)(
+    nuInit*(
+          grad3(u)'*grad3(uu)
+        + grad3(v)'*grad3(vv)
+        + grad3(w)'*grad3(ww)
+    )
+    - p*(dx(uu)+dy(vv)+dz(ww))
+    - pp*(dx(u)+dy(v)+dz(w))
+    - 1.e-10*p*pp
+)
+// Termino de flotabilidad Boussinesq: puramente lineal en la funcion
+// de test (no involucra u,v,w,p), asi que va en su propio int3d
+// separado -- FreeFEM no permite mezclar terminos bilineales y
+// puramente lineales dentro del MISMO int3d(...).
+- int3d(Th)(
+    betaExp*gGrav*(TCoupling-Tref)*ww
+)
++ on(south,u=0,v=Uin(),w=0)
++ on(floor,chimney,chimneyFloor,u=0,v=0,w=0)
++ on(east,west,u=0)
++ on(sky,w=0);
+
+A = vStokes(Wh,Wh,tgv=-1);
+
+if(mpirank==0)
+    cout << "STAGE 3: distributed Stokes matrix assembled" << endl;
+
+string petscOptions =
+      "-ksp_type preonly "
+    + "-pc_type lu "
+    + "-pc_factor_mat_solver_type mumps "
+    + "-mat_mumps_icntl_14 60 "
+    + "-mat_mumps_icntl_28 2 "
+    + "-mat_mumps_icntl_29 2 "
+    + "-mat_mumps_icntl_4 2 "
+    + "-ksp_monitor "
+    + "-ksp_converged_reason ";
+
+set(A,sparams=petscOptions);
+
+if(mpirank==0)
+    cout << "STAGE 4: PETSc + MUMPS direct solver configured" << endl;
+
+fespace WhG(ThG,Pk);
+WhG<real> def(solG),def(solReduce);
+
+real TmeanPrev = Tamb;
+
+for(int picard=0; picard<nPicard; picard++)
+{
+    if(mpirank==0)
+        cout << "===== PICARD ITER " << picard << " =====" << endl;
+
+    real[int] rhs = vStokes(0,Wh,tgv=-1);
+
+    sol[] = 0.0;
+    real tSolve = clock();
+    sol[] = A^-1*rhs;
+    tSolve = clock()-tSolve;
+
+    if(mpirank==0)
+        cout << "PETSc Stokes solve [s] = " << tSolve
+             << " (factorizacion reutilizada tras iter 0)" << endl;
+
+    // Reconstruccion global de velocidad+presion para el termico
+    // y los diagnosticos.
+    sol[] .*= A.D;
+    int[int] rest = restrict(Wh,WhG,n2o);
+    solReduce[] = 0.0;
+    solReduce[](rest) = sol[];
+    mpiAllReduce(solReduce[],solG[],mpiCommWorld,mpiSUM);
+
+    if(mpirank==0)
+    {
+        PhOut uOut=solG;
+        PhOut vOut=solGB;
+        PhOut wOut=solGC;
+        PhOut pOut=solGD;
+        // TfieldGlobal ya vale Tamb uniforme en la iteracion 0, y el
+        // campo termico de la iteracion anterior en las siguientes --
+        // sirve directamente como punto de partida para el GMRES.
+        PhOut Tstat=TfieldGlobal, testT;
+
+        problem ThermalSteady(Tstat,testT,solver=GMRES,eps=1.e-8,nbiter=2000)
+        = int3d(ThOut)(
+              alphaT*(
+                  dx(Tstat)*dx(testT)
+                + dy(Tstat)*dy(testT)
+                + dz(Tstat)*dz(testT)
+              )
+            + (uOut*dx(Tstat)+vOut*dy(Tstat)+wOut*dz(Tstat))*testT
+            + hTriangle
+              /(2.0*sqrt(uOut*uOut+vOut*vOut+wOut*wOut+1.e-6))
+              *(uOut*dx(Tstat)+vOut*dy(Tstat)+wOut*dz(Tstat))
+              *(uOut*dx(testT)+vOut*dy(testT)+wOut*dz(testT))
+        )
+        + on(south,Tstat=Tamb)
+        + on(chimney,chimneyFloor,Tstat=Twall);
+
+        ThermalSteady;
+
+        TfieldGlobal[] = Tstat[];
+
+        real divL2 = sqrt(int3d(ThOut)((dx(uOut)+dy(vOut)+dz(wOut))^2));
+        real Qin = -int2d(ThOut,south)(uOut*N.x+vOut*N.y+wOut*N.z);
+        real Qout = int2d(ThOut,north)(uOut*N.x+vOut*N.y+wOut*N.z);
+        real balance = abs(Qout-Qin)/max(abs(Qin),1.e-12);
+        real Tmean = int3d(ThOut)(Tstat)/ThOut.measure;
+
+        cout << "divL2   = " << divL2 << endl;
+        cout << "Qin     = " << Qin << endl;
+        cout << "Qout    = " << Qout << endl;
+        cout << "balance = " << balance << endl;
+        cout << "Tmin    = " << Tstat[].min << endl;
+        cout << "Tmax    = " << Tstat[].max << endl;
+        cout << "Tmean   = " << Tmean << endl;
+        cout << "wMax    = " << wOut[].max << endl;
+        cout << "wMin    = " << wOut[].min << endl;
+        cout << "deltaTmean respecto iter anterior = "
+             << abs(Tmean-TmeanPrev) << endl;
+
+        TmeanPrev = Tmean;
+    }
+
+    // Todos los procesos reciben el campo termico recien calculado
+    // en rank 0, para usarlo como flotabilidad en la siguiente
+    // iteracion de Picard.
+    broadcast(processor(0),TfieldGlobal[]);
+    TCoupling = TfieldGlobal;
+
+    mpiBarrier(mpiCommWorld);
+}
+
+if(mpirank==0)
+{
+    PhOut uOut=solG;
+    PhOut vOut=solGB;
+    PhOut wOut=solGC;
+    PhOut pOut=solGD;
+    PhOut Tfinal=TfieldGlobal;
+
+    int[int] fforder=[1,1,1];
+    string outputName = smoke
+        ? "stokes_thermal_smoke_boussinesq.vtu"
+        : "stokes_thermal_boussinesq.vtu";
+
+    savevtk(
+        outputName,
+        ThOut,
+        [uOut,vOut,wOut],
+        pOut,
+        Tfinal,
+        dataname="Velocity Pressure Temperature",
+        order=fforder
+    );
+
+    cout << "VTU unificado = " << outputName << endl;
+    cout << "PICARD COMPLETADO, " << nPicard << " iteraciones" << endl;
+}
+
+mpiBarrier(mpiCommWorld);
