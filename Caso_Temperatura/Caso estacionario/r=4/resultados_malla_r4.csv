@@ -1,0 +1,2 @@
+r;vertices;triangulos;Tmin_C;Tmax_C;T_cubierta_C;T_baldosa_EPS_C;T_EPS_forjado_C;T_forjado_aire_C;longitud_paredes_cm;longitud_cubierta_cm;longitud_suelo_cm;flujo_paredes_W_m;flujo_conv_cubierta_W_m;flujo_rad_neta_cubierta_W_m;flujo_solar_absorbido_W_m;flujo_cubierta_neto_W_m;flujo_suelo_W_m;balance_neto_W_m;escala_balance_W_m;error_balance_relativo;error_balance_porcentaje
+4;109473;217600;20.9;30.6275;30.6274;30.6261;30.5368;30.4953;1268;1000;1000;0.88549;754.994;782.677;1542;-4.32959;1.56677;-1.87733;3082.12;0.000609103;0.0609103

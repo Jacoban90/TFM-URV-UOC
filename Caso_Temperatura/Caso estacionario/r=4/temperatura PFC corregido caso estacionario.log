@@ -1,0 +1,27 @@
+LONGITUDES DE LAS FRONTERAS
+=============================================
+Longitud total paredes = 1268 cm
+Longitud cubierta = 1000 cm
+Longitud suelo = 1000 cm
+ 
+=============================================
+FLUJOS TERMICOS
+Convenio: positivo = flujo saliente
+=============================================
+Flujo paredes = 0.88549 W/m
+Conveccion cubierta = 754.994 W/m
+Radiacion termica neta cubierta = 782.677 W/m
+Radiacion solar absorbida = 1542 W/m
+Flujo neto cubierta = -4.32959 W/m
+Flujo suelo = 1.56677 W/m
+Balance neto = -1.87733 W/m
+Escala del balance = 3082.12 W/m
+Error relativo del balance = 0.000609103
+Error porcentual del balance = 0.0609103 %
+Comprobacion solar absorbida = 1542 W/m; valor esperado aproximadamente 1542 W/m
+ 0x1c17c162100 VTK_FILE 1
+times: compile 2.761s, execution 158.434s,  mpirank:0
+ ######## unfreed pointers   4226 Nb pointer,   0Bytes  ,  mpirank 0, memory leak =0
+ CodeAlloc : nb ptr  5764,  size :593696 mpirank: 0
+Ok: Normal End
+ try getConsole C:\Users\jacob\Universidad de Las Palmas de Gran Canaria\MET NUMERICOS JACOB GABRIEL - General\Master IngenierIa Computacional y Matematica\TFM\Codigos_validacion\Caso_Temperatura\Caso estacionario\r=4\temperatura PFC corregido caso estacionario.edp
