@@ -1,0 +1,84 @@
+// Level 0 corregido: salida do-nothing y proyeccion coherente.
+// El Layton_test.edp original no se modifica.
+load "iovtk"
+load "gmsh"
+verbosity = 0;
+
+real reynolds = 600.0;
+real nu = 1.0/reynolds;
+real dt = 0.005;
+int nt = 8400;
+
+func ue = y*(10.0-y)/25.0;
+func psie = (5.0*y^2-y^3/3.0)/25.0;
+real psiTop = 20.0/3.0;
+
+mesh Th = gmshload("mesh_level0_structured_graded.msh");
+fespace Vh(Th,P1);
+fespace Sh(Th,P2);
+Vh u=0.0,v=0.0,p=0.0,q=0.0,w,uold,vold,pold;
+Sh psi,z;
+
+int[int] fieldOrder=[1,1];
+int[int] finalFieldOrder=[1,1,2];
+real t=0.0;
+
+for(int n=0;n<nt;n++) {
+    uold=u;
+    vold=v;
+    pold=p;
+    t+=dt;
+
+    Vh f=convect([uold,vold],-dt,uold);
+    Vh g=convect([uold,vold],-dt,vold);
+
+    solve pb4u(u,w,init=n,solver=LU)
+      = int2d(Th)(u*w/dt+nu*(dx(u)*dx(w)+dy(u)*dy(w)))
+      - int2d(Th)((f/dt-dx(pold))*w)
+      + on(8,u=ue)
+      + on(1,2,3,4,5,7,u=0.0);
+
+    solve pb4v(v,w,init=n,solver=LU)
+      = int2d(Th)(v*w/dt+nu*(dx(v)*dx(w)+dy(v)*dy(w)))
+      - int2d(Th)((g/dt-dy(pold))*w)
+      + on(8,v=0.0)
+      + on(1,2,3,4,5,7,v=0.0);
+
+    solve pb4p(q,w,init=n,solver=LU)
+      = int2d(Th)(dx(q)*dx(w)+dy(q)*dy(w))
+      - int2d(Th)((dx(u)+dy(v))*w/dt)
+      + on(6,q=0.0);
+
+    p=pold-q;
+    u=u+dt*dx(q);
+    v=v+dt*dy(q);
+
+    if(!(n%400) || n==nt-1) {
+        real umax=max(abs(u[].min),abs(u[].max));
+        real vmax=max(abs(v[].min),abs(v[].max));
+        real pmax=max(abs(p[].min),abs(p[].max));
+        real divL2=sqrt(int2d(Th)((dx(u)+dy(v))^2));
+        cout << "CHECK n=" << n << " t=" << t
+             << " umax=" << umax << " vmax=" << vmax
+             << " pmax=" << pmax << " divL2=" << divL2 << endl;
+    }
+
+    if(!(n%800)) {
+        string filename="corrected_level0_step_"+n+".vtu";
+        savevtk(filename,Th,[u,v,0],p,
+                dataname="Velocity Pressure",order=fieldOrder);
+    }
+}
+
+solve streamlines(psi,z,solver=LU)
+  = int2d(Th)(dx(psi)*dx(z)+dy(psi)*dy(z))
+  + int2d(Th)(-z*(dy(u)-dx(v)))
+  + on(8,psi=psie)
+  + on(7,psi=psiTop)
+  + on(1,2,3,4,5,psi=0.0);
+
+savevtk("corrected_level0_final.vtu",Th,[u,v,0],p,psi,
+        dataname="Velocity Pressure Streamfunction",
+        order=finalFieldOrder);
+
+cout << "LEVEL0_CORRECTED completed t=" << t << endl;

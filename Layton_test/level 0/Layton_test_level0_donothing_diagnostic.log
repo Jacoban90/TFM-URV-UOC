@@ -1,0 +1,27 @@
+  SkyLineMatrix: size pL/pU: 635 65333 65333 moy=102.887
+  -- Solve :
+          min -119.955  max 118.976
+  SkyLineMatrix: size pL/pU: 635 65333 65333 moy=102.887
+  -- Solve :
+          min -3.0896  max 3.40156
+  SkyLineMatrix: size pL/pU: 635 65333 65333 moy=102.887
+  -- Solve :
+          min -3.97775  max 4.43093
+  SkyLineMatrix: size pL/pU: 635 65333 65333 moy=102.887
+  -- Solve :
+          min -107.837  max 101.157
+  SkyLineMatrix: size pL/pU: 635 65333 65333 moy=102.887
+  -- Solve :
+          min -2.81709  max 3.33913
+  SkyLineMatrix: size pL/pU: 635 65333 65333 moy=102.887
+  -- Solve :
+          min -3.96652  max 2.54955
+  SkyLineMatrix: size pL/pU: 635 65333 65333 moy=102.887
+  -- Solve :
+          min -85.7062  max 76.3392
+LEVEL0_DIAGNOSTIC completed t=6
+times: compile 0.152s, execution 299.375s,  mpirank:0
+ ######## unfreed pointers   11522643 Nb pointer,   0Bytes  ,  mpirank 0, memory leak =0
+ CodeAlloc : nb ptr  4462,  size :557432 mpirank: 0
+Ok: Normal End
+ try getConsole C:\Users\jacob\Universidad de Las Palmas de Gran Canaria\MET NUMERICOS JACOB GABRIEL - General\Master In"\Q¼œWÑ¿genierIa Computacional y Matematica\TFM\Codigos_validacion\Layton_test\level 0\Layton_test_level0_donothing_diagnostic.e"\Q¼œWÑ¿dp

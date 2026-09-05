@@ -1,0 +1,78 @@
+// Diagnostico del Level 0 con salida do-nothing.
+// El archivo Layton_test.edp original no se modifica.
+load "iovtk"
+load "gmsh"
+
+real reynolds = 600.0;
+real nu = 1.0 / reynolds;
+real dt = 0.005;
+int nt = 1200;
+
+func ue = y * (10.0 - y) / 25.0;
+
+mesh Th = gmshload("mesh_level0_structured_graded.msh");
+fespace Vh(Th, P1);
+
+Vh u = 0.0, v = 0.0, p = 0.0, q = 0.0, w;
+Vh uold, vold, pold;
+
+real area = int2d(Th)(1.0);
+cout << "LEVEL0_DIAGNOSTIC mesh nv=" << Th.nv
+     << " nt=" << Th.nt << " area=" << area << endl;
+
+int[int] fldOrder = [1, 1];
+real t = 0.0;
+
+for (int n = 0; n < nt; ++n) {
+    uold = u;
+    vold = v;
+    pold = p;
+    t += dt;
+
+    Vh f = convect([uold, vold], -dt, uold);
+    Vh g = convect([uold, vold], -dt, vold);
+
+    solve pb4u(u, w, init = n, solver = LU)
+        = int2d(Th)(u*w/dt + nu*(dx(u)*dx(w) + dy(u)*dy(w)))
+        - int2d(Th)((f/dt - dx(pold))*w)
+        + on(8, u = ue)
+        + on(1, 2, 3, 4, 5, 7, u = 0.0);
+
+    solve pb4v(v, w, init = n, solver = LU)
+        = int2d(Th)(v*w/dt + nu*(dx(v)*dx(w) + dy(v)*dy(w)))
+        - int2d(Th)((g/dt - dy(pold))*w)
+        + on(8, v = 0.0)
+        + on(1, 2, 3, 4, 5, 7, v = 0.0);
+
+    // Con q fijada en la salida no se resta la divergencia media.
+    solve pb4p(q, w, init = n, solver = LU)
+        = int2d(Th)(dx(q)*dx(w) + dy(q)*dy(w))
+        - int2d(Th)((dx(u) + dy(v))*w/dt)
+        + on(6, q = 0.0);
+
+    p = pold - q;
+    u = u + dt*dx(q);
+    v = v + dt*dy(q);
+
+    if (!(n % 20)) {
+        real umax = max(abs(u[].min), abs(u[].max));
+        real vmax = max(abs(v[].min), abs(v[].max));
+        real pmax = max(abs(p[].min), abs(p[].max));
+        real divL2 = sqrt(int2d(Th)((dx(u) + dy(v))^2));
+        real fluxIn = int1d(Th, 8)(u*N.x + v*N.y);
+        real fluxOut = int1d(Th, 6)(u*N.x + v*N.y);
+        cout << "DIAG n=" << n << " t=" << t
+             << " umax=" << umax << " vmax=" << vmax
+             << " pmax=" << pmax << " divL2=" << divL2
+             << " fluxIn=" << fluxIn << " fluxOut=" << fluxOut
+             << " balance=" << fluxIn + fluxOut << endl;
+    }
+
+    if (!(n % 200)) {
+        string filename = "diagnostic_donothing_step_" + n + ".vtu";
+        savevtk(filename, Th, [u, v, 0], p,
+                dataname = "Velocity Pressure", order = fldOrder);
+    }
+}
+
+cout << "LEVEL0_DIAGNOSTIC completed t=" << t << endl;

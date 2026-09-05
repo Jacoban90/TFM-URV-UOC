@@ -1,0 +1,90 @@
+// Level 0 P1/P1 con estabilizacion h^2 de la presion.
+load "iovtk"
+load "gmsh"
+verbosity=0;
+
+real reynolds=600.0;
+real nu=1.0/reynolds;
+real dt=0.005;
+real epsP=0.02;
+int nt=1201;
+func ue=y*(10.0-y)/25.0;
+
+mesh Th=gmshload("mesh_level0_structured_graded.msh");
+fespace Vh(Th,P1);
+Vh u=0.0,v=0.0,p=0.0,q=0.0,w;
+Vh uold,vold,pold,ustar,vstar,pRaw;
+
+int[int] fieldOrder=[1,1];
+real t=0.0;
+
+for(int n=0;n<nt;n++) {
+    uold=u;
+    vold=v;
+    pold=p;
+    t+=dt;
+
+    Vh f=convect([uold,vold],-dt,uold);
+    Vh g=convect([uold,vold],-dt,vold);
+
+    solve predictorU(u,w,init=n,solver=LU)
+      = int2d(Th)(u*w/dt+nu*(dx(u)*dx(w)+dy(u)*dy(w)))
+      - int2d(Th)((f/dt-dx(pold))*w)
+      + on(8,u=ue)
+      + on(1,2,3,4,5,7,u=0.0);
+
+    solve predictorV(v,w,init=n,solver=LU)
+      = int2d(Th)(v*w/dt+nu*(dx(v)*dx(w)+dy(v)*dy(w)))
+      - int2d(Th)((g/dt-dy(pold))*w)
+      + on(8,v=0.0)
+      + on(1,2,3,4,5,7,v=0.0);
+
+    ustar=u;
+    vstar=v;
+
+    solve pressureCorrection(q,w,init=n,solver=LU)
+      = int2d(Th)(dx(q)*dx(w)+dy(q)*dy(w))
+      - int2d(Th)((dx(ustar)+dy(vstar))*w/dt)
+      + on(6,q=0.0);
+
+    pRaw=pold-q;
+
+    // Filtro consistente con P1/P1: amortigua solo escalas del orden de h.
+    solve pressureStabilization(p,w,init=n,solver=LU)
+      = int2d(Th)(p*w)
+      + int2d(Th)(epsP*(dx(p)*dx(w)+dy(p)*dy(w)))
+      - int2d(Th)(pRaw*w)
+      + on(6,p=0.0);
+
+    solve correctU(u,w,init=n,solver=LU)
+      = int2d(Th,qft=qf1pTlump)(u*w)
+      - int2d(Th,qft=qf1pTlump)((ustar+dt*dx(q))*w)
+      + on(8,u=ue)
+      + on(1,2,3,4,5,7,u=0.0);
+
+    solve correctV(v,w,init=n,solver=LU)
+      = int2d(Th,qft=qf1pTlump)(v*w)
+      - int2d(Th,qft=qf1pTlump)((vstar+dt*dy(q))*w)
+      + on(8,v=0.0)
+      + on(1,2,3,4,5,7,v=0.0);
+
+    if(!(n%400)) {
+        real umax=max(abs(u[].min),abs(u[].max));
+        real vmax=max(abs(v[].min),abs(v[].max));
+        real pmax=max(abs(p[].min),abs(p[].max));
+        real divL2=sqrt(int2d(Th)((dx(u)+dy(v))^2));
+        real inletError=sqrt(int1d(Th,8)((u-ue)^2+v^2));
+        real wallError=sqrt(int1d(Th,1,2,3,4,5,7)(u^2+v^2));
+        cout << "CHECK n=" << n << " t=" << t
+             << " umax=" << umax << " vmax=" << vmax
+             << " pmax=" << pmax << " divL2=" << divL2
+             << " inletError=" << inletError
+             << " wallError=" << wallError << endl;
+
+        string filename="corrected_v4_stabilized_level0_step_"+n+".vtu";
+        savevtk(filename,Th,[u,v,0],p,
+                dataname="Velocity Pressure",order=fieldOrder);
+    }
+}
+
+cout << "LEVEL0_CORRECTED_V4_STABILIZED completed t=" << t << endl;

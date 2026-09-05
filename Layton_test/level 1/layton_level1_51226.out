@@ -1,0 +1,116 @@
+============================================================
+Layton level 1 bibloque
+Nodo: cn005
+Inicio: vie 21 ago 2026 22:37:40 WEST
+Directorio: /home/scratch/cea/jabdelfatah/TFM/Step_test_Layton/level 1
+============================================================
+-- FreeFem++ v4.13 (Fri 07 Jul 2023 10:49:44 AM CEST - git v4.13)
+   file : Layton_test_level1_2blocks.edp
+ Load: lg_fem lg_mesh lg_mesh3 eigenvalue 
+    1 : // Level 1 P1/P1: malla bibloque aguas abajo.
+    2 : load "iovtk" load: iovtk 
+
+    3 : load "gmsh"
+    4 : verbosity=0;
+    5 : 
+    6 : real reynolds=600.0;
+    7 : real nu=1.0/reynolds;
+    8 : real dt=0.005;
+    9 : // Estabilizacion proporcional a h^2: 0.02/(2^2).
+   10 : real epsP=0.005;
+   11 : real Umax=1.0;
+   12 : int nt=8000;
+   13 : func ue=Umax*y*(10.0-y)/25.0;
+   14 : func pChannel=2.0*nu*Umax*(40.0-x)/25.0;
+   15 : 
+   16 : mesh Th=gmshload("mesh_level1_2blocks_downstream.msh");
+   17 : fespace Vh(Th,P1);
+   18 : // Estado inicial compatible con la entrada fija y el canal desarrollado.
+   19 : Vh u=ue,v=0.0,p=pChannel,q=0.0,w;
+   20 : Vh uold,vold,pold,ustar,vstar,pRaw;
+   21 : 
+   22 : int[int] fieldOrder=[1,1];
+   23 : real t=0.0;
+   24 : 
+   25 : for(int n=0;n<nt;n++) {
+   26 :     uold=u;
+   27 :     vold=v;
+   28 :     pold=p;
+   29 :     t+=dt;
+   30 : 
+   31 :     Vh f=convect([uold,vold],-dt,uold);
+   32 :     Vh g=convect([uold,vold],-dt,vold);
+   33 : 
+   34 :     solve predictorU(u,w,init=n,solver=LU)
+   35 :       = int2d(Th)(u*w/dt+nu*(dx(u)*dx(w)+dy(u)*dy(w)))
+   36 :       - int2d(Th)((f/dt-dx(pold))*w)
+   37 :       + on(8,u=ue)
+   38 :       + on(1,2,3,4,5,7,u=0.0);
+   39 : 
+   40 :     solve predictorV(v,w,init=n,solver=LU)
+   41 :       = int2d(Th)(v*w/dt+nu*(dx(v)*dx(w)+dy(v)*dy(w)))
+   42 :       - int2d(Th)((g/dt-dy(pold))*w)
+   43 :       + on(8,v=0.0)
+   44 :       + on(1,2,3,4,5,7,v=0.0);
+   45 : 
+   46 :     ustar=u;
+   47 :     vstar=v;
+   48 : 
+   49 :     solve pressureCorrection(q,w,init=n,solver=LU)
+   50 :       = int2d(Th)(dx(q)*dx(w)+dy(q)*dy(w))
+   51 :       - int2d(Th)((dx(ustar)+dy(vstar))*w/dt)
+   52 :       + on(6,q=0.0);
+   53 : 
+   54 :     pRaw=pold-q;
+   55 : 
+   56 :     solve pressureStabilization(p,w,init=n,solver=LU)
+   57 :       = int2d(Th)(p*w)
+   58 :       + int2d(Th)(epsP*(dx(p)*dx(w)+dy(p)*dy(w)))
+   59 :       - int2d(Th)(pRaw*w)
+   60 :       + on(6,p=0.0);
+   61 : 
+   62 :     solve correctU(u,w,init=n,solver=LU)
+   63 :       = int2d(Th,qft=qf1pTlump)(u*w)
+   64 :       - int2d(Th,qft=qf1pTlump)((ustar+dt*dx(q))*w)
+   65 :       + on(8,u=ue)
+   66 :       + on(1,2,3,4,5,7,u=0.0);
+   67 : 
+   68 :     solve correctV(v,w,init=n,solver=LU)
+   69 :       = int2d(Th,qft=qf1pTlump)(v*w)
+   70 :       - int2d(Th,qft=qf1pTlump)((vstar+dt*dy(q))*w)
+   71 :       + on(8,v=0.0)
+   72 :       + on(1,2,3,4,5,7,v=0.0);
+   73 : 
+   74 :     // Salidas relevantes: inicio y t = 10, 20, 30, 40.
+   75 :     if(n==0 || !((n+1)%2000)) {
+   76 :         real umax=max(abs(u[].min),abs(u[].max));
+   77 :         real vmax=max(abs(v[].min),abs(v[].max));
+   78 :         real pmax=max(abs(p[].min),abs(p[].max));
+   79 :         real divL2=sqrt(int2d(Th)((dx(u)+dy(v))^2));
+   80 :         real inletError=sqrt(int1d(Th,8)((u-ue)^2+v^2));
+   81 :         real wallError=sqrt(int1d(Th,1,2,3,4,5,7)(u^2+v^2));
+   82 :         cout << "CHECK n=" << n << " t=" << t
+   83 :              << " umax=" << umax << " vmax=" << vmax
+   84 :              << " pmax=" << pmax << " divL2=" << divL2
+   85 :              << " inletError=" << inletError
+   86 :              << " wallError=" << wallError << endl;
+   87 : 
+   88 :         int timeLabel=round(t);
+   89 :         string filename="level1_2blocks_t"+timeLabel+".vtu";
+   90 :         savevtk(filename,Th,[u,v,0],p,
+   91 :                 dataname="Velocity Pressure",order=fieldOrder);
+   92 :     }
+   93 : }
+   94 : 
+   95 : cout << "LEVEL1_2BLOCKS completed t=" << t << endl;
+   96 :  sizestack + 1024 =8864  ( 7840 )
+
+CHECK n=0 t=0.005 umax=1.00807 vmax=0.151558 pmax=44.2713 divL2=0.902957 inletError=0.00672655 wallError=0
+CHECK n=1999 t=10 umax=1.03353 vmax=0.236867 pmax=0.199143 divL2=0.342539 inletError=0.00672655 wallError=0
+CHECK n=3999 t=20 umax=1.04557 vmax=0.235863 pmax=0.183269 divL2=0.334588 inletError=0.00672655 wallError=0
+CHECK n=5999 t=30 umax=1.05006 vmax=0.234431 pmax=0.175075 divL2=0.328849 inletError=0.00672655 wallError=0
+CHECK n=7999 t=40 umax=1.05129 vmax=0.233391 pmax=0.169805 divL2=0.325967 inletError=0.00672655 wallError=0
+LEVEL1_2BLOCKS completed t=40
+============================================================
+Fin: vie 21 ago 2026 22:48:49 WEST
+============================================================

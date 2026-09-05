@@ -1,0 +1,109 @@
+load "iovtk"
+load "gmsh"
+
+real reynolds = 600.0;
+real nu = 1.0 / reynolds;
+real dt = 0.01;
+int  nt = 8400;
+
+// Perfil de entrada analítico e integral exacta de corriente
+func ue   = y * (10.0 - y) / 25.0;
+func psie = (5.0 * y^2 - (y^3) / 3.0) / 25.0;
+real psiTop = psie(0.0, 10.0); // 20/3 = 6.66667
+
+// =========================================================================
+// MALLA ESTRUCTURADA MULTIBLOQUE GRADUADA - NIVEL 0
+// =========================================================================
+// Generada con mesh_level0_structured_graded.geo. Las etiquetas fisicas 1..8
+// coinciden con las condiciones de contorno utilizadas mas abajo.
+mesh Th = gmshload("mesh_level0_structured_graded.msh");
+savemesh(Th, "mesh_level0_structured_graded.mesh");
+
+real area = int2d(Th)(1.0);
+cout << "Malla Nivel 0 cargada: " << Th.nv << " vertices, " << Th.nt << " triangulos." << endl;
+
+// --- Espacios de Elementos Finitos ---
+fespace Vh(Th, P1);
+fespace VhP2(Th, P2);
+
+Vh u = 0, v = 0, p = 0, q = 0, w;
+Vh uold, vold, pold;
+VhP2 psii, ww;
+
+// --- Operador de Laplace para Líneas de Corriente ---
+varf aStream(psii, ww) = int2d(Th)(dx(psii)*dx(ww) + dy(psii)*dy(ww))
+                       + on(8, psii = psie)
+                       + on(7, psii = psiTop)
+                       + on(1, 2, 3, 4, 5, psii = 0.0);
+
+varf rhsStream(psii, ww) = int2d(Th)(-ww * (dy(u) - dx(v)))
+                         + on(8, psii = psie)
+                         + on(7, psii = psiTop)
+                         + on(1, 2, 3, 4, 5, psii = 0.0);
+
+matrix AStream = aStream(VhP2, VhP2, solver = sparsesolver);
+
+real t = 0.0;
+real TIME = 0.0;
+
+// Vector de orden de interpolación para cada campo exportado ([u,v,0] -> 1, p -> 1)
+int[int] fldOrder = [1, 1];
+
+// =========================================================================
+// BUCLE TEMPORAL
+// =========================================================================
+
+for (int n = 0; n < nt; ++n) {
+    uold = u;
+    vold = v;
+    pold = p;
+    t += dt;
+
+    Vh f = convect([uold, vold], -dt, uold);
+    Vh g = convect([uold, vold], -dt, vold);
+
+    // 1. Predictor U
+    solve pb4u(u, w, init = n, solver = LU)
+        = int2d(Th)(u * w / dt + nu * (dx(u)*dx(w) + dy(u)*dy(w)))
+        - int2d(Th)((f / dt - dx(pold)) * w)
+        + on(8, u = ue)
+        + on(1, 2, 3, 4, 5, 7, u = 0.0);
+
+    // 2. Predictor V
+    solve pb4v(v, w, init = n, solver = LU)
+        = int2d(Th)(v * w / dt + nu * (dx(v)*dx(w) + dy(v)*dy(w)))
+        - int2d(Th)((g / dt - dy(pold)) * w)
+        + on(8, v = 0.0)
+        + on(1, 2, 3, 4, 5, 7, v = 0.0);
+
+    // 3. Corrector Presión
+    real meandiv = int2d(Th)(dx(u) + dy(v)) / area;
+
+    solve pb4p(q, w, init = n, solver = LU)
+        = int2d(Th)(dx(q)*dx(w) + dy(q)*dy(w))
+        - int2d(Th)((dx(u) + dy(v) - meandiv) * w / dt)
+        + on(6, q = 0.0);
+
+    // 4. Actualización
+    p = pold - q;
+    u = u + dx(q) * dt;
+    v = v + dy(q) * dt;
+
+    TIME += dt;
+
+if (!(n % 200)) {
+        string filename = "solucion_step_" + n + ".vtu";
+        
+        savevtk(filename, Th, [u, v, 0], p, 
+                dataname = "Velocity Pressure", 
+                order = fldOrder);
+                
+        cout << "Guardado VTK: " << filename << " | t = " << t << " s" << endl;
+    }
+
+    if (!(n % 400)) {
+        real[int] bStream = rhsStream(0, VhP2);
+        psii[] = AStream^-1 * bStream;
+        plot(psii, cmm = "Lineas de corriente - Nivel 3 - t = " + t, fill = 0, value = 1);
+    }
+}
