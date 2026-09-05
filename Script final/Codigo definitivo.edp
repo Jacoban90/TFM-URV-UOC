@@ -1,0 +1,363 @@
+load "msh3"
+load "gmsh"
+load "medit"
+load "tetgen"
+load "iovtk"
+load "MUMPS_seq"
+real cpu=clock();
+
+/* ACTUALIZADO ANTES 37 ETIQUETAS
+
+2 1 "sur"
+2 2 "oeste"
+2 3 "este"
+2 4 "norte"
+2 5 "cielo"
+2 6 "suelo externo"
+2 7 "fachada sur"
+2 8 "fachada oeste"
+2 9 "fachada este muro principal"
+2 10 "superficie radiante patio lateral"
+2 11 "fachada norte muro principal"
+2 12 "cubierta exterior principal(superficie radiante)"
+2 13 "techo interior principal"
+2 14 "paredes interiores principales"
+2 15 "saliente patio central"
+2 16 "paredes exteriores panel patio central"
+2 17 "paredes interiores patio central"
+2 18 "alerones patio central"
+2 19 "columnas patio central"
+2 20 "techo exterior patio central(superficie radiante)"
+2 21 "espesor techo patio central"
+2 22 "superficie inferior techo patio central"
+2 23 "paredes interiores patio lateral"
+2 24 "saliente patio lateral"
+2 25 "alerones patio lateral"
+2 26 "caras laterales techo patio lateral"
+2 27 "cara superior techo patio lateral(superficie radiante)"
+2 28 "caras laterales columnas patio lateral"
+2 29 "suelo patio lateral"
+2 30 "bordillos"
+2 31 "huecos muro principal"
+2 32 "huecos muro patio lateral"
+2 33 "caras exteriores marcos externos en el muro principal"
+2 34 "caras interiores muro patio marcos externos"
+2 35 "cantos interiores marcos externos puertas y ventanas"
+2 36 "suelo interior"
+2 37 "cara exterior cristales ventana frontal"
+2 38 "cara interior cristales ventana frontal"
+2 39 "cara externa marcos interiores edificio"
+2 40 "caras internas edificio marcos interiores"
+2 41 "caras internas marcos internos patio lateral"
+2 42 "caras exteriores cristales edificio"
+2 43 "caras interiores cristales edificio"
+2 44 "caras interiores cristales patio lateral"
+2 45 "cantos marcos interiores"
+3 46 "aire"
+
+CARAS SUPERFICIES EN CONTACTO CON SOLIDOS(CARAS QUE COMPARTEN DOS SOLIDOS, Y EN LAS QUE SE PRODUCE TRANSFERENCIA DE CALOR POR CONDUCCION)
+
+2 47 "cara inferior cubierta principal en contacto con el muro principal"
+2 48 "cara suelo en cointacto con muro principal"
+2 49 "caras muro patio lateral en contacto con muro principal"
+2 50 "cantos marcos en contacto con muro principal"
+2 52 "caras espesor cubierta en contacto con el muro del patio lateral"
+2 53 "caras alerones exteriores en contacto con muro patio lateral"
+2 54 "caras alerones interiores en contacto con el muro del patio lateral"
+2 55 "caras inferiores pilares patio lateral, en contacto con el muro del patio lateral"
+2 56 "cara suelo en contacto con muro patio lateral"
+2 57 "caras marcos exteriores en contacto con muro patio lateral"
+2 59 "caras alerones exteriores patio central en contacto con la cubierta"
+2 60 "caras alerones interiores patio central en contacto con la cubierta"
+2 61 "cara pilares en contacto con cubierta principal"
+2 62 "cara superior panel en contacto con la cubierta"
+2 65 "cara pilares en contacto con techo patio central"
+2 69 "cara suelo en contacto con panel patio central"
+2 73 "caras superiores pilares patio lateral en contacto con el techo del mismo"
+2 76 "caras canto interior ventana frontal en contacto con el cristal"
+2 77 "base marco puerta, en contacto con el suelo"
+2 80 "cantos cristales muro principal, en contacto con el marco"
+2 82 "caras cantos marcos interiores en contacto con vidrio"
+2 86 "cara suelo en contacto con el terreno"
+
+
+Etiquetas regiones solidas
+
+3 51 "muro principal "
+3 58 "muro patio lateral"
+3 63 "cubierta principal"
+3 64 "aleron exterior patio central "
+3 66 "aleron interior patio central"
+3 67 "techo patio central "
+3 68 "pilares patio central"
+3 70 "panel patio central"
+3 71 "aleron exterior patio lateral"
+3 72 "aleron interior patio lateral"
+3 74 "techo patio lateral"
+3 75 "pilares patio lateral"
+3 78 "marcos externos puertas y ventanas muro principal"
+3 79 "marcos externos muro patio lateral"
+3 81 "marcos internos puertas y ventanas muro principal"
+3 83 "marcos internos ventanas patio lateral"
+3 84 "cristales ventanas muro principal"
+3 85 "cristales ventanas patio lateral"
+3 87 "suelo parcela "
+*/
+
+
+mesh3 muroprincipal3d=readmesh3("muro principal 3d.mesh");
+plot(muroprincipal3d,wait=1);
+
+mesh3 muropatiolateral3d=readmesh3("muro patio lateral 3d.mesh");
+plot(muropatiolateral3d,wait=1);
+
+mesh3 cubiertaprincipal3d=readmesh3("cubierta principal 3d.mesh");
+plot(cubiertaprincipal3d,wait=1);
+
+mesh3 aleronexteriorpatiocentral3d=readmesh3("aleron exterior patio central 3d.mesh");
+plot(aleronexteriorpatiocentral3d,wait=1);
+
+mesh3 aleroninteriorpatiocentral3d=readmesh3("aleron interior patio central 3d.mesh");
+plot(aleroninteriorpatiocentral3d,wait=1);
+
+mesh3 techopatiocentral3d=readmesh3("techo patio central 3d.mesh");
+plot(techopatiocentral3d,wait=1);
+
+mesh3 pilarespatiocentral3d=readmesh3("pilares patio central 3d.mesh");
+plot(pilarespatiocentral3d,wait=1);
+
+mesh3 panelpatiocentral3d=readmesh3("panel patio central 3d.mesh");
+plot(panelpatiocentral3d,wait=1);
+
+mesh3 aleronexteriorpatiolateral3d=readmesh3("aleron exterior patio lateral 3d.mesh");
+plot(aleronexteriorpatiocentral3d,wait=1);
+
+mesh3 aleroninteriorpatiolateral3d=readmesh3("aleron interior patio lateral 3d.mesh");
+plot(aleroninteriorpatiolateral3d,wait=1);
+
+mesh3 techopatiolateral3d=readmesh3("techo patio lateral 3d.mesh");
+plot(techopatiolateral3d,wait=1);
+
+mesh3 pilarespatiolateral3d=readmesh3("pilares patio lateral 3d.mesh");
+plot(pilarespatiolateral3d,wait=1);
+
+mesh3 marcosexternospuertasyventanasmuroprincipal3d=readmesh3("marcos externos puertas y ventanas muro principal 3d.mesh");
+plot(marcosexternospuertasyventanasmuroprincipal3d,wait=1);
+
+mesh3 marcosexternosmuropatiolateral3d=readmesh3("marcos externos muro patio lateral 3d.mesh");
+plot(marcosexternosmuropatiolateral3d,wait=1);
+
+mesh3 marcosinternospuertasyventanasmuroprincipal3d=readmesh3("marcos internos puertas y ventanas muro principal 3d.mesh");
+plot(marcosinternospuertasyventanasmuroprincipal3d,wait=1);
+
+mesh3 marcosinternosventanaspatiolateral3d=readmesh3("marcos internos ventanas patio lateral 3d.mesh");
+plot(marcosinternosventanaspatiolateral3d,wait=1); 
+
+mesh3 cristalesventanasmuroprincipal3d=readmesh3("cristales ventanas muro principal 3d.mesh");
+plot(cristalesventanasmuroprincipal3d,wait=1);
+
+mesh3 cristalesventanaspatiolateral3d=readmesh3("cristales ventanas patio lateral 3d.mesh");
+plot(cristalesventanaspatiolateral3d,wait=1);
+
+mesh3 sueloparcela3d=readmesh3("suelo parcela 3d.mesh");
+plot(sueloparcela3d,wait=1);
+
+mesh3 solidmesh3d=muroprincipal3d+muropatiolateral3d+cubiertaprincipal3d+aleronexteriorpatiocentral3d+aleroninteriorpatiocentral3d+techopatiocentral3d+pilarespatiocentral3d+panelpatiocentral3d+aleronexteriorpatiolateral3d+aleroninteriorpatiolateral3d+techopatiolateral3d+pilarespatiolateral3d+marcosexternospuertasyventanasmuroprincipal3d+marcosexternosmuropatiolateral3d+marcosinternospuertasyventanasmuroprincipal3d+marcosinternosventanaspatiolateral3d+cristalesventanasmuroprincipal3d+cristalesventanaspatiolateral3d;
+
+
+fespace Xh(solidmesh3d, P13d);
+Xh regiones = region;
+
+
+
+
+Xh K = (0.75*(regiones==51))+(0.75*(regiones==58))+(2*(regiones==63))+(1.16*(regiones==64))+(1.1*(regiones==66))+(2*(regiones==67))+(4*(regiones==68))+(2*(regiones==70))+(2*(regiones==71))+(2*(regiones==72))+(2*(regiones==74))+(2*(regiones==75))+(4*(regiones==78))+(2*(regiones==79))+(2*(regiones==81))+(2*(regiones==83))+(2*(regiones==84)+(2*(regiones==85))+(2*(regiones==87)));
+mesh3 Th=readmesh3("air domain 3d.mesh");
+cout << "volume = " << int3d (Th) (1.0) << endl;
+cout << "surface area = " << int2d (Th) (1.0) << endl;
+plot(Th,wait=1);
+real L = -704.9502;
+real nu=1.8e-5;
+real kappa=0.024;
+
+verbosity=9;
+real[int] domain2 = [1.5,0.,0.,145,0.001,0.5,0.,0.,18,0.01];
+
+real g=-9.81; // vector gravedad
+real T0=20.,T1=40;
+real beta=1./293.15;  //  1/T0  en kelvin
+
+real t;
+real dt=0.01;
+real alpha=1/dt;
+int iter=0;
+real tmax=12;
+
+
+
+//real nu = 0.000016; 
+// air cinematic viscosity  m2/s for 30 ºC, 
+
+real kT=0.000025258; // difusividad a 50ºC
+// real Kappa=0.027801;
+//real r0=1.0925;
+
+real cp=1000.7;
+//real aa=1./(r0*cp);
+
+//real aa=1./(den*cp);
+
+real nu0=0.000015111;
+real nu1=0.000016982;
+real A1=(nu0-nu1)/(T0-T1);
+
+real den0=1.2047;
+real den1=1.1275;
+real A2=(den0-den1)/(T0-T1);
+
+real dif0=0.00002117;
+real dif1=0.000023848;
+real A=(dif0-dif1)/(T0-T1);
+
+func real den(real T) { return (den0 + A2*(T-T0));}  
+func real mu(real T)  { return (nu0  + A1*(T-T0));}  
+func real dif(real T) { return (dif0 +  A*(T-T0));}  
+func real aa(real T)  { return (1./(den(T)*cp));}  
+
+
+real epsi = 1.e-10;
+
+
+
+
+
+macro dn(u) (N.x*dx(u)+N.y*dy(u)+N.z*dz(u)) //EOM
+
+fespace XXh(Th,P03d);
+XXh regiones2= region;
+
+XXh K1=(0.024*(regiones==46));
+
+
+macro Grad(u) [dx(u),dy(u),dz(u)]// 
+macro div(u1,u2,u3) (dx(u1)+dy(u2)+dz(u3)) //
+
+real epsilon=0.000001;
+
+fespace Vh(Th,P13d);
+Vh u1 = 0, u2 =0, u3=0, p = 0, q=0, w1,w2,w3,w4;
+
+Vh T,Toldt,vv;
+Toldt=T0;
+
+real Text;
+Text=27.;
+
+Vh lambda=0;
+Vh pp=0,qq=0;
+
+Vh u1old = u1, u2old = u2, u3old = u3, pold=p;
+Vh f=convect([u1,u2,u3],-dt,u1old), g1=convect([u1,u2,u3],-dt,u2old), g2=convect([u1,u2,u3],-dt,u3old);
+
+Xh TS,vvv; // temperatura y funcion test
+
+int i;
+int h=10;
+int[int] Interfaceairesolido=1:45; 
+int[int] Interfacesolidosolido=[47,48,49,50,52,53,54,55,56,57,59,60,61,62,65,69,73,76,77,80,82,86];
+
+
+problem LAPLACE (TS,vvv,solver=GMRES,nbiter=100) = int3d(solidmesh3d)(K*dx(TS)*dx(vvv)+K*dy(TS)*dy(vvv)+K*dz(TS)*dz(vvv))
++ int3d(solidmesh3d)( -vvv) +int2d(solidmesh3d,Interfaceairesolido)(-lambda*vvv)
+-int2d(solidmesh3d,Interfacesolidosolido)(K*dn(TS)*vvv)+on(48,56,69,TS=20.9)+on(Interfaceairesolido,TS=T);
+
+problem calor2 (T,vv,solver=GMRES,nbiter=100) = int3d(Th)((u1*dx(T)*vv+u2*dy(T)*vv+u3*dz(T)*vv))+int3d(Th) (K1*(dx(T)*dx(vv)+dy(T)*dy(vv)
++dz(T)*dz(vv)))+ int3d(Th)( -vv)+ int2d(Th,Interfaceairesolido)(-lambda*vv)+int2d(Th,Interfaceairesolido)(h*T*vv)- int2d(Th,Interfaceairesolido)(h*Text*vv)
++on(12,20,27,T=32)+on(1,2,3,4,5,T=28)+on(6,29,36,T=20.9);
+
+
+varf b(TS,vvv,solver=GMRES) =int2d(solidmesh3d,Interfaceairesolido)(TS*vvv);
+matrix B= b(Vh,Vh,solver=GMRES);
+
+
+func real[int] BoundaryProblem(real[int] &l)
+{ 
+   lambda[]=l;
+   calor2; 
+   LAPLACE;
+   i++;
+   vv=-(T-TS); 
+   lambda[]=B*vv[];
+   return lambda[] ;
+};
+
+
+for(int iter=0;iter<100;++iter)
+{
+
+Vh u1old = u1, u2old = u2, u3old = u3, pold=p;	
+	
+
+    t=t+dt;
+real TIME;
+real vol= int3d(Th)(1.);
+
+//Vh f=convect([u1,u2,u3],-dt,u1old), g1=convect([u1,u2,u3],-dt,u2old), g2=convect([u1,u2,u3],-dt,u3old);
+
+solve pb4u(u1,w1,init=iter,solver=UMFPACK)
+=int3d(Th)(u1*w1/dt +nu*(dx(u1)*dx(w1)+dy(u1)*dy(w1)+dz(u1)*dz(w1)))
+-int3d(Th)((f/dt-dx(p))*w1)
++on(1,2,u1=1)
++ on (3,4,5, u1=f)
+// caras  3,4 y 5 son de flujo libre , posibles salidas CUBO
+
++on(Interfaceairesolido,u1=0);
+
+solve pb4v(u2,w2,init=iter,solver=UMFPACK)
+= int3d(Th)(u2*w2/dt +nu*(dx(u2)*dx(w2)+dy(u2)*dy(w2)+dz(u2)*dz(w2)))
+-int3d(Th)((g1/dt-dy(p))*w2)
+
++on(1,2,u2=4)
+
+ + on (3,4,5, u2=g1)
+
++on(Interfaceairesolido,u2=0);
+
+solve pb4w(u3,w3,init=iter,solver=UMFPACK)
+= int3d(Th)(u3*w3/dt +nu*(dx(u3)*dx(w3)+dy(u3)*dy(w3)+dz(u3)*dz(w3)))
+-int3d(Th)((g2/dt-dz(p))*w3)
++int3d(Th)(epsilon*p*w3)                                                        
+
++on(1,2,u3=0)
+ 
++ on (3,4,5, u3=g2)
+
++on(Interfaceairesolido,u3=0);
+
+real meandiv = int3d(Th)(dx(u1)+dy(u2)+dz(u3))/vol;
+
+solve pb4p(q,w4,init=iter,solver=UMFPACK)= int3d(Th)(dx(q)*dx(w4)+dy(q)*dy(w4)+dz(q)*dz(w4))
+- int3d(Th)((dx(u1)+ dy(u2)+dz(u3))*w4/dt)
++ on(3,4,5,q=0);
+
+real meanpq = int3d(Th)(pold - q)/vol;
+
+p = pold-q-meanpq;
+u1 = u1 + dx(q)*dt;
+u2 = u2 + dy(q)*dt;
+u3 = u3 + dz(q)*dt;	
+
+savevtk("output2-"+iter+".vtk", Th, [u1,u2,u3], dataname="velocidad(m/s)");
+//medit("velocidad temperatura", Th, [u1,u2,u3],t);
+
+LinearGMRES(BoundaryProblem,pp[],qq[],eps=1.e-6,nbiter=10);
+//  compute the final solution, because CG works with increment
+BoundaryProblem(pp[]); // solve again  to have right u1,u2
+cout << " -- CPU time  schwarz-gc:" <<  clock()-cpu << endl;
+
+
+
+savevtk("temperaturaaire-"+iter+".vtk",Th,T,dataname="temperatura_aire");
+savevtk("temperaturaedificio-"+iter+".vtk",solidmesh3d,TS,dataname="temperatura_solido");
+
+}
