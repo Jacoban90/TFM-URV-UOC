@@ -1,0 +1,29 @@
+   82 : if(cubeSmoke)
+   83 : {
+   84 :     int[int] lab=[1,4,2,3,6,5];
+   85 :     ThGlobal=cube(8,8,4,[60.0*x-20.0,70.0*y-25.0,20.0*z-0.36],label=lab);
+   86 : }
+   87 : else
+   88 : {
+   89 :     ThGlobal=readmesh3(meshFile);
+   90 : }
+   91 :
+   92 : if(mpirank The Identifier mpirank does not exist
+ 
+ Error line number 92, in file C:\Users\jacob\Universidad de Las Palmas de Gran Canaria\MET NUMERICOS JACOB GABRIEL - Gecional y Matemat†=dº0
+neral\Master IngenierIa Computacional y Matematica\TFM\Caso_aire_acondicionado\Caso_Robin_Cubierta\edificio3d_chorin_lercional y Matemat†=dº0
+ay_boussinesq_mpi.edp, before  token mpirank
+ 
+  current line = 92
+Compile error :
+        line number :92, mpirank
+error Compile error :
+        line number :92, mpirank
+ code = 1 mpirank: 0
+WARNING! There are options you set that were not used!
+WARNING! could be spelling mistake, etc!
+There is one unused database option. It is:
+Option left: name:-wait (no value) source: command line
+ try getConsole C:\Users\jacob\Universidad de Las Palmas de Gran Canaria\MET NUMERICOS JACOB GABRIEL - General\Master Incional y Matemat†=dº0
+genierIa Computacional y Matematica\TFM\Caso_aire_acondicionado\Caso_Robin_Cubierta\edificio3d_chorin_leray_boussinesq_mcional y Matemat†=dº0
+pi.edp

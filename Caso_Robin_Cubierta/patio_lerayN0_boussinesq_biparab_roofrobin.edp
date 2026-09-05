@@ -1,0 +1,332 @@
+// Ensayo del patio 3D: Chorin + Leray N=0 + temperatura + Boussinesq.
+// Entrada biparabolica fija. delta=0.20 CONSTANTE (igual que la referencia
+// 12_BOUSSINESQ_BIPARABOLICO_T2000_CLUSTER).
+//
+// VARIANTE ROOFROBIN: sustituye la condicion de contorno de Dirichlet en el
+// techo (T=30 fija) por una condicion de Robin fisicamente justificada,
+// derivada del balance radiacion+conveccion exterior + conduccion del
+// techo real, reutilizando los datos y la metodologia YA presentes en la
+// memoria (submodelo 2D de conduccion del forjado de cubierta):
+//
+//   T0        = 27 C            (temperatura exterior de diseno, "valor
+//                                 representativo en verano", apartado 2.2.1)
+//   viento    = 4 m/s           -> hext = 5.7+3.8*viento = 20.9 W/m2K
+//   RADSOLAR  = 771 W/m2        (irradiancia de diseno usada en la memoria)
+//   R=0.80 (reflexion)          -> A = 1-R = 0.20 (absortividad techo)
+//   emisividad = 0.8, sigma = 5.6704e-8 W/m2K4 (Stefan-Boltzmann)
+//   Tcielo = T0^1.5 * 0.0552    (formula de Swinbank, temperatura cielo)
+//   U_techo = 0.34 W/m2K        (Techo_Exterior, forjado unidireccional
+//                                 con EPS, transmitancia de la envolvente
+//                                 termica real del edificio, Tabla ENVOLVENTE)
+//
+// En vez de resolver el balance no lineal (T^4) en cada paso -- carisimo
+// con 6000+ iteraciones -- se linealiza mediante una temperatura
+// "sol-aire" equivalente (metodo estandar de fisica de la edificacion,
+// analogo a la linealizacion B=(Told^2+T^2)*(Told+T) ya usada en el
+// submodelo 2D de la memoria para el termino radiativo T^4-T0^4):
+//
+//   T_sol-aire = T0 + A*RADSOLAR/hext - emisividad*sigma*(T0^4-Tcielo^4)/hext
+//              ~= 27 + 7.38 - 2.87 = 31.5 C
+//
+// Y se impone como condicion de Robin sobre el techo:
+//
+//   -k_aire * dT/dn = U_techo*(T_sol-aire - T)
+//
+// que en las unidades de la ecuacion de temperatura del codigo (dividida
+// entre rho*cp, ya que se trabaja con alphaT=kAir/(rho*cp) en vez de kAir)
+// se traduce en un coeficiente efectivo:
+//
+//   Ueff = U_techo/(rho*cp) ~= 2.82e-4 m/s
+//
+// NO VALIDADO: ensayo corto T=300s para comprobar estabilidad antes de
+// extender a T=2000s como el caso de referencia. delta=0.20 constante
+// para aislar el efecto de la nueva BC del techo (no mezclar con el
+// ensayo, tambien en curso, de delta(x) variable).
+load "iovtk"
+load "msh3"
+verbosity=0;
+
+int inlet = 1;
+int walls = 2;
+int outlet = 4;
+int roof = 6;
+
+real dt = 0.05;
+int nt = 6000; // T=300 s, ensayo corto de validacion
+int vtkEvery = 10; // salida cada 0.5 s
+real Umean = 6.0;
+
+real nuEff = 0.10;
+real epsP = 0.0025;
+real delta = 0.20; // CONSTANTE, igual que la referencia
+real delta2Const = delta^2;
+int nProj = 3;
+
+// Propiedades termicas del aire y aproximacion de Boussinesq.
+real rho = 1.2047;
+real cp = 1000.7;
+real kAir = 0.024;
+real alphaT = kAir/(rho*cp);
+real beta = 1.0/293.15;
+real grav = 9.81;
+
+real Tinit = 27.0; // = T0amb (temperatura exterior de diseno), sala sin climatizar antes del arranque del AC
+real Tin = 15.0;
+real Tref = 20.0;
+
+// --- Balance radiacion+conveccion exterior del techo (datos de la memoria) ---
+real T0amb = 27.0;              // C, temperatura exterior de diseno (verano/agosto)
+real viento = 4.0;               // m/s
+real hext = 5.7+3.8*viento;      // W/m2K, coef. conveccion exterior
+real Rrefl = 0.80;
+real Aabs = 1.0-Rrefl;           // absortividad techo
+real emisividadTecho = 0.8;
+real sigmaSB = 5.6704e-8;        // W/m2K4
+real RADSOLAR = 771.0;           // W/m2, irradiancia de diseno (memoria)
+real T0K = T0amb+273.15;
+real TcieloK = (T0K^1.5)*0.0552; // Swinbank
+real deltaRadK = emisividadTecho*sigmaSB*(T0K^4-TcieloK^4)/hext;
+real TsolAireC = T0amb + Aabs*RADSOLAR/hext - deltaRadK; // C
+real Utecho = 0.34;              // W/m2K, Techo_Exterior (forjado + EPS, memoria)
+real Ueff = Utecho/(rho*cp);     // m/s, coeficiente Robin en unidades de alphaT
+
+string prefix = "patio_lerayN0_boussinesq_biparab_roofrobin";
+
+mesh3 Th = readmesh3("dominio del aire_4.mesh");
+fespace Vh(Th,P13d);
+
+Vh u1=0.0, u2=0.0, u3=0.0, p=0.0;
+Vh u1old, u2old, u3old, pold;
+Vh u1star, u2star, u3star, q, qTotal, pRaw;
+Vh umag, divh;
+Vh c1, c2, c3;
+Vh adv1, adv2, adv3;
+Vh temp=Tinit, tempOld, tempAdv;
+
+real time=0.0;
+real Uin=Umean;
+int[int] vtkOrder=[1,1,1];
+
+// Difusor rectangular: x=[2.466952,3.466952], z=[5.4,5.7] m.
+real xInC=2.966952, xInH=0.5;
+real zInC=5.55, zInH=0.15;
+real inletProfileScale=9.0/4.0;
+func real inletShape()
+{
+    real sx=max(0.0,1.0-((x-xInC)/xInH)^2);
+    real sz=max(0.0,1.0-((z-zInC)/zInH)^2);
+    return sx*sz;
+}
+
+varf vFilter(a,b)
+    = int3d(Th)(a*b
+        +delta2Const*(dx(a)*dx(b)+dy(a)*dy(b)+dz(a)*dz(b)))
+    + on(inlet,walls,roof,a=0.0);
+
+varf vFilterRhs1(dummy,b)
+    = int3d(Th)(u1old*b)
+    + on(inlet,dummy=0.0)
+    + on(walls,roof,dummy=0.0);
+
+varf vFilterRhs2(dummy,b)
+    = int3d(Th)(u2old*b)
+    + on(inlet,dummy=inletProfileScale*Uin*inletShape())
+    + on(walls,roof,dummy=0.0);
+
+varf vFilterRhs3(dummy,b)
+    = int3d(Th)(u3old*b)
+    + on(inlet,dummy=0.0)
+    + on(walls,roof,dummy=0.0);
+
+varf vPredict(a,b)
+    = int3d(Th)(a*b/dt
+        +nuEff*(dx(a)*dx(b)+dy(a)*dy(b)+dz(a)*dz(b)))
+    + on(inlet,walls,roof,a=0.0);
+
+varf vPredictRhs1(dummy,b)
+    = int3d(Th)((c1/dt-0.5*(dx(adv1)+dy(adv2)+dz(adv3))*u1old-dx(pold))*b)
+    + on(inlet,dummy=0.0)
+    + on(walls,roof,dummy=0.0);
+
+varf vPredictRhs2(dummy,b)
+    = int3d(Th)((c2/dt-0.5*(dx(adv1)+dy(adv2)+dz(adv3))*u2old-dy(pold))*b)
+    + on(inlet,dummy=inletProfileScale*Uin*inletShape())
+    + on(walls,roof,dummy=0.0);
+
+varf vPredictRhs3(dummy,b)
+    = int3d(Th)((c3/dt-0.5*(dx(adv1)+dy(adv2)+dz(adv3))*u3old-dz(pold)
+                 +grav*beta*(tempOld-Tref))*b)
+    + on(inlet,dummy=0.0)
+    + on(walls,roof,dummy=0.0);
+
+// --- Ecuacion de temperatura con Robin en el techo (sustituye Dirichlet) ---
+varf vTemperature(a,b)
+    = int3d(Th,qfV=qfV1lump)(a*b/dt)
+    + int3d(Th)(alphaT*(dx(a)*dx(b)+dy(a)*dy(b)+dz(a)*dz(b)))
+    + int2d(Th,roof)(Ueff*a*b)
+    + on(inlet,a=0.0);
+
+varf vTemperatureRhs(dummy,b)
+    = int3d(Th,qfV=qfV1lump)(tempAdv*b/dt)
+    + int2d(Th,roof)(Ueff*TsolAireC*b)
+    + on(inlet,dummy=Tin);
+
+varf vPressure(a,b)
+    = int3d(Th)(dx(a)*dx(b)+dy(a)*dy(b)+dz(a)*dz(b))
+    + on(outlet,a=0.0);
+
+varf vPressureRhs(dummy,b)
+    = int3d(Th)((dx(u1star)+dy(u2star)+dz(u3star))*b/dt)
+    + on(outlet,dummy=0.0);
+
+varf vPressureFilter(a,b)
+    = int3d(Th)(a*b)
+    + int3d(Th)(epsP*(dx(a)*dx(b)+dy(a)*dy(b)+dz(a)*dz(b)))
+    + on(outlet,a=0.0);
+
+varf vPressureFilterRhs(dummy,b)
+    = int3d(Th)(pRaw*b)
+    + on(outlet,dummy=0.0);
+
+varf vMass(a,b)
+    = int3d(Th,qfV=qfV1lump)(a*b)
+    + on(inlet,walls,roof,a=0.0);
+
+varf vMassRhs1(dummy,b)
+    = int3d(Th,qfV=qfV1lump)((u1star+dt*dx(q))*b)
+    + on(inlet,dummy=0.0)
+    + on(walls,roof,dummy=0.0);
+
+varf vMassRhs2(dummy,b)
+    = int3d(Th,qfV=qfV1lump)((u2star+dt*dy(q))*b)
+    + on(inlet,dummy=inletProfileScale*Uin*inletShape())
+    + on(walls,roof,dummy=0.0);
+
+varf vMassRhs3(dummy,b)
+    = int3d(Th,qfV=qfV1lump)((u3star+dt*dz(q))*b)
+    + on(inlet,dummy=0.0)
+    + on(walls,roof,dummy=0.0);
+
+matrix AFilter=vFilter(Vh,Vh,tgv=-1,solver=CG);
+matrix APredict=vPredict(Vh,Vh,tgv=-1,solver=CG);
+matrix ATemperature=vTemperature(Vh,Vh,tgv=-1,solver=CG);
+matrix APressure=vPressure(Vh,Vh,tgv=-1,solver=CG);
+matrix APressureFilter=vPressureFilter(Vh,Vh,tgv=-1,solver=CG);
+matrix AMass=vMass(Vh,Vh,tgv=-1,solver=CG);
+
+set(AFilter,solver=CG,eps=1.e-9,nbiter=1500);
+set(APredict,solver=CG,eps=1.e-8,nbiter=1000);
+set(ATemperature,solver=CG,eps=1.e-9,nbiter=1500);
+set(APressure,solver=CG,eps=1.e-9,nbiter=2000);
+set(APressureFilter,solver=CG,eps=1.e-9,nbiter=2000);
+set(AMass,solver=CG,eps=1.e-10,nbiter=500);
+
+real Ain=int2d(Th,inlet)(1.0);
+real Aout=int2d(Th,outlet)(1.0);
+real Aroof=int2d(Th,roof)(1.0);
+real Vol=int3d(Th)(1.0);
+
+cout << "CONFIG CHORIN_LERAY_N0_BOUSSINESQ_ROOFROBIN P1P1 nv=" << Th.nv
+     << " nt=" << Th.nt << " Ain=" << Ain << " Aout=" << Aout
+     << " Aroof=" << Aroof << " Vol=" << Vol
+     << " dt=" << dt << " steps=" << nt << " Umean=" << Umean
+     << " nuEff=" << nuEff << " epsP=" << epsP << " delta=" << delta
+     << " nProj=" << nProj
+     << " alphaT=" << alphaT << " beta=" << beta
+     << " Tinit=" << Tinit << " Tin=" << Tin << " Tref=" << Tref
+     << " T0amb=" << T0amb << " hext=" << hext << " RADSOLAR=" << RADSOLAR
+     << " Aabs=" << Aabs << " TcieloK=" << TcieloK << " TsolAireC=" << TsolAireC
+     << " Utecho=" << Utecho << " Ueff=" << Ueff << endl;
+
+for(int n=0;n<nt;n++)
+{
+    u1old=u1;
+    u2old=u2;
+    u3old=u3;
+    pold=p;
+    tempOld=temp;
+    time += dt;
+    Uin=Umean;
+
+    real[int] bf1=vFilterRhs1(0,Vh,tgv=-1);
+    real[int] bf2=vFilterRhs2(0,Vh,tgv=-1);
+    real[int] bf3=vFilterRhs3(0,Vh,tgv=-1);
+    adv1[]=AFilter^-1*bf1;
+    adv2[]=AFilter^-1*bf2;
+    adv3[]=AFilter^-1*bf3;
+
+    c1=convect([adv1,adv2,adv3],-dt,u1old);
+    c2=convect([adv1,adv2,adv3],-dt,u2old);
+    c3=convect([adv1,adv2,adv3],-dt,u3old);
+    tempAdv=convect([adv1,adv2,adv3],-dt,tempOld);
+    tempAdv=max(Tin,min(TsolAireC,tempAdv));
+
+    real[int] b1=vPredictRhs1(0,Vh,tgv=-1);
+    real[int] b2=vPredictRhs2(0,Vh,tgv=-1);
+    real[int] b3=vPredictRhs3(0,Vh,tgv=-1);
+    u1[]=APredict^-1*b1;
+    u2[]=APredict^-1*b2;
+    u3[]=APredict^-1*b3;
+
+    u1star=u1;
+    u2star=u2;
+    u3star=u3;
+    qTotal=0.0;
+
+    for(int kp=0;kp<nProj;kp++)
+    {
+        real[int] bq=vPressureRhs(0,Vh,tgv=-1);
+        q[]=APressure^-1*bq;
+        qTotal=qTotal+q;
+
+        real[int] bm1=vMassRhs1(0,Vh,tgv=-1);
+        real[int] bm2=vMassRhs2(0,Vh,tgv=-1);
+        real[int] bm3=vMassRhs3(0,Vh,tgv=-1);
+        u1[]=AMass^-1*bm1;
+        u2[]=AMass^-1*bm2;
+        u3[]=AMass^-1*bm3;
+        u1star=u1;
+        u2star=u2;
+        u3star=u3;
+    }
+
+    pRaw=pold-qTotal;
+    real[int] bp=vPressureFilterRhs(0,Vh,tgv=-1);
+    p[]=APressureFilter^-1*bp;
+
+    real[int] bt=vTemperatureRhs(0,Vh,tgv=-1);
+    temp[]=ATemperature^-1*bt;
+    temp=max(Tin,min(TsolAireC,temp));
+
+    umag=sqrt(u1*u1+u2*u2+u3*u3);
+    divh=dx(u1)+dy(u2)+dz(u3);
+
+    real Qin=-int2d(Th,inlet)(u1*N.x+u2*N.y+u3*N.z);
+    real Qout=int2d(Th,outlet)(u1*N.x+u2*N.y+u3*N.z);
+    real divL2=sqrt(int3d(Th)((dx(u1)+dy(u2)+dz(u3))^2));
+    real wallErr=sqrt(int2d(Th,walls,roof)(u1*u1+u2*u2+u3*u3));
+    real meanSpeed=int3d(Th)(umag)/Vol;
+    real wRms=sqrt(int3d(Th)(u3*u3)/Vol);
+    real Tmean=int3d(Th)(temp)/Vol;
+    real QroofInto=kAir*int2d(Th,roof)(
+        dx(temp)*N.x+dy(temp)*N.y+dz(temp)*N.z);
+
+    cout << "STEP " << n+1 << " t=" << time
+         << " umax=" << umag[].max << " meanSpeed=" << meanSpeed
+         << " wMin=" << u3[].min << " wMax=" << u3[].max
+         << " wRms=" << wRms
+         << " Tmin=" << temp[].min << " Tmax=" << temp[].max
+         << " Tmean=" << Tmean << " QroofIntoW=" << QroofInto
+         << " Qin=" << Qin << " Qout=" << Qout
+         << " balance=" << Qout-Qin << " divL2=" << divL2
+         << " wallErr=" << wallErr << endl;
+
+    if(n==0 || n==nt-1 || !((n+1)%vtkEvery))
+    {
+        string filename=prefix+"_t"+time+".vtu";
+        savevtk(filename,Th,[u1,u2,u3],p,temp,
+                dataname="Velocity Pressure Temperature",order=vtkOrder);
+    }
+}
+
+cout << "NORMAL_END CHORIN_LERAY_N0_BOUSSINESQ_ROOFROBIN t=" << time << endl;

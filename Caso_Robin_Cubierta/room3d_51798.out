@@ -1,0 +1,738 @@
+ROOM3D CHORIN-LERAY (2017 mesh, Schwarz termico) node=cn001 start=jue 03 sep 2026 22:33:44 WEST
+nuEff=0.10 delta=0.10 perfil log bidireccional z0=0.30 zRef=10 nIterRun=20 (preliminar)
+ ARGV 3 -nw 
+ ARGV 4 room3d_chorin_leray.edp 
+ fn: room3d_chorin_leray.edp
+-- FreeFem++ v4.13 (Fri 07 Jul 2023 10:49:44 AM CEST - git v4.13)
+   file : room3d_chorin_leray.edp  verbosity= 5
+ Load: lg_fem lg_mesh  glumesh2D lg_mesh3 eigenvalue 
+    1 : load "msh3" (load: dlopen /usr/local/lib/ff++/4.13/lib/msh3.so 0x55d1c0f3c210)
+ load: msh3  
+
+    2 : load "gmsh" (load: dlopen /usr/local/lib/ff++/4.13/lib/gmsh.so 0x55d1c0f40510)
+ load: gmsh 
+
+    3 : load "medit" (load: dlopen /usr/local/lib/ff++/4.13/lib/medit.so 0x55d1c0f415f0)
+ load:popen.cpp  
+
+    4 : load "tetgen" (load: dlopen /usr/local/lib/ff++/4.13/lib/tetgen.so 0x55d1c0f42600)
+ load: tetgen  
+
+    5 : load "iovtk" (load: dlopen /usr/local/lib/ff++/4.13/lib/iovtk.so 0x55d1c0f434d0)
+ load: iovtk 
+
+    6 : load "MUMPS_seq"init MUMPS_SEQ: MPI_Init
+ (load: dlopen /usr/local/lib/ff++/4.13/lib/MUMPS_seq.so 0x55d1c0f44630)
+
+    7 : real cpu=clock();
+    8 : 
+    9 : /* ACTUALIZADO ANTES 37 ETIQUETAS -- ver Codigo definitivo.edp (2017) para el listado
+   10 :    completo de 87 etiquetas de superficies/regiones. Sin cambios respecto al original.
+   11 : 
+   12 :    ADAPTACION 2026: caso "Codigo definitivo.edp" (PFC 2017) reescrito para usar
+   13 :    la misma metodologia Chorin+Leray+forma skew-simetrica del resto del TFM
+   14 :    (roofrobin, chimenea, difusor, estratificacion 2D), manteniendo el acoplamiento
+   15 :    termico aire-solido original mediante Schwarz/GMRES (LAPLACE + calor2 + lambda).
+   16 : 
+   17 :    Cambios respecto al original:
+   18 :      1) nu = 1.8e-5 (molecular)      -> nuEff = 0.10 m2/s (numerico, igual que
+   19 :         chimenea/difusor, ver justificacion en el Word del Tema 4)
+   20 :      2) Transporte adjunto puro       -> filtro de Leray-Helmholtz sobre u
+   21 :         (delta=0.10 m, igual que el caso 2D asociado a la chimenea) + termino
+   22 :         de correccion skew-simetrico -1/2*(div ubar)*u^n en el predictor
+   23 :      3) Entrada u1=1,u2=4 constante  -> perfil logaritmico bidireccional
+   24 :         (misma direccion/proporcion 1:4 del viento original, magnitud
+   25 :         creciente con la altura via ley logaritmica, z0=0.30 m, zRef=10 m)
+   26 :      4) solver=UMFPACK -> solver=sparsesolver (MUMPS) en las 4 resoluciones
+   27 :         de momento/presion, por robustez en memoria sobre esta malla grande
+   28 :      5) Acoplamiento termico aire-solido: SIN CAMBIOS, se mantiene el esquema
+   29 :         Schwarz/GMRES completo (LAPLACE + calor2 + BoundaryProblem) tal cual
+   30 :         el original de 2017.
+   31 : */
+   32 : 
+   33 : 
+   34 : mesh3 muroprincipal3d=readmesh3("muro principal 3d.mesh");
+   35 : 
+   36 : mesh3 muropatiolateral3d=readmesh3("muro patio lateral 3d.mesh");
+   37 : 
+   38 : mesh3 cubiertaprincipal3d=readmesh3("cubierta principal 3d.mesh");
+   39 : 
+   40 : mesh3 aleronexteriorpatiocentral3d=readmesh3("aleron exterior patio central 3d.mesh");
+   41 : 
+   42 : mesh3 aleroninteriorpatiocentral3d=readmesh3("aleron interior patio central 3d.mesh");
+   43 : 
+   44 : mesh3 techopatiocentral3d=readmesh3("techo patio central 3d.mesh");
+   45 : 
+   46 : mesh3 pilarespatiocentral3d=readmesh3("pilares patio central 3d.mesh");
+   47 : 
+   48 : mesh3 panelpatiocentral3d=readmesh3("panel patio central 3d.mesh");
+   49 : 
+   50 : mesh3 aleronexteriorpatiolateral3d=readmesh3("aleron exterior patio lateral 3d.mesh");
+   51 : 
+   52 : mesh3 aleroninteriorpatiolateral3d=readmesh3("aleron interior patio lateral 3d.mesh");
+   53 : 
+   54 : mesh3 techopatiolateral3d=readmesh3("techo patio lateral 3d.mesh");
+   55 : 
+   56 : mesh3 pilarespatiolateral3d=readmesh3("pilares patio lateral 3d.mesh");
+   57 : 
+   58 : mesh3 marcosexternospuertasyventanasmuroprincipal3d=readmesh3("marcos externos puertas y ventanas muro principal
+  ... :  3d.mesh");
+   59 : 
+   60 : mesh3 marcosexternosmuropatiolateral3d=readmesh3("marcos externos muro patio lateral 3d.mesh");
+   61 : 
+   62 : mesh3 marcosinternospuertasyventanasmuroprincipal3d=readmesh3("marcos internos puertas y ventanas muro principal
+  ... :  3d.mesh");
+   63 : 
+   64 : mesh3 marcosinternosventanaspatiolateral3d=readmesh3("marcos internos ventanas patio lateral 3d.mesh");
+   65 : 
+   66 : mesh3 cristalesventanasmuroprincipal3d=readmesh3("cristales ventanas muro principal 3d.mesh");
+   67 : 
+   68 : mesh3 cristalesventanaspatiolateral3d=readmesh3("cristales ventanas patio lateral 3d.mesh");
+   69 : 
+   70 : mesh3 sueloparcela3d=readmesh3("suelo parcela 3d.mesh");
+   71 : 
+   72 : mesh3 solidmesh3d=muroprincipal3d+muropatiolateral3d+cubiertaprincipal3d+aleronexteriorpatiocentral3d+aleroninteriorpatiocentral3d+techopatiocentral3d+pilarespatiocentral3d+panelpatiocentral3d+aleronexteriorpatiolateral3d+aleroninteriorpatiolateral3d+techopatiolateral3d+pilarespatiolateral3d+marcosexternospuertasyventanasmuroprincipal3d+marcosexternosmuropatiolateral3d+marcosinternospuertasyventanasmuroprincipal3d+marcosinternosventanaspatiolateral3d+cristalesventanasmuroprincipal3d+cristalesventanaspatiolateral3d;
+   73 : 
+   74 : 
+   75 : fespace Xh(solidmesh3d, P13d) nb item = 1
+number of pfes in a composite FESpace=0
+args.size()=2
+;
+   76 : Xh regiones = region;
+   77 : 
+   78 : 
+   79 : 
+   80 : 
+   81 : Xh K = (0.75*(regiones==51))+(0.75*(regiones==58))+(2*(regiones==63))+(1.16*(regiones==64))+(1.1*(regiones==66))+(2*(regiones==67))+(4*(regiones==68))+(2*(regiones==70))+(2*(regiones==71))+(2*(regiones==72))+(2*(regiones==74))+(2*(regiones==75))+(4*(regiones==78))+(2*(regiones==79))+(2*(regiones==81))+(2*(regiones==83))+(2*(regiones==84)+(2*(regiones==85))+(2*(regiones==87)));
+   82 : mesh3 Th=readmesh3("air domain 3d.mesh");
+   83 : cout << "volume = " << int3d (Th) (1.0) << endl;
+   84 : cout << "surface area = " << int2d (Th) (1.0) << endl;
+   85 : real L = -704.9502;
+   86 : real nuEff=0.10;      // viscosidad numerica efectiva (Leray), igual que chimenea/difusor
+   87 : real nu=nuEff;        // se mantiene el nombre 'nu' para no tocar el resto del codigo
+   88 : real deltaLeray=0.10; // ancho del filtro de Leray, igual que el caso 2D asociado a la chimenea
+   89 : real kappa=0.024;
+   90 : 
+   91 : verbosity=5;
+   92 : real[int] domain2 = [1.5,0.,0.,145,0.001,0.5,0.,0.,18,0.01];
+   93 : 
+   94 : real g=-9.81; // vector gravedad
+   95 : real T0=20.,T1=40;
+   96 : real beta=1./293.15;  //  1/T0  en kelvin
+   97 : 
+   98 : real t;
+   99 : real dt=0.01;
+  100 : real alpha=1/dt;
+  101 : int iter=0;
+  102 : real tmax=12;
+  103 : 
+  104 : 
+  105 : 
+  106 : // real nu = 0.000016;
+  107 : // air cinematic viscosity  m2/s for 30 ºC,  (sustituida por nuEff, ver arriba)
+  108 : 
+  109 : real kT=0.000025258; // difusividad a 50ºC
+  110 : // real Kappa=0.027801;
+  111 : //real r0=1.0925;
+  112 : 
+  113 : real cp=1000.7;
+  114 : //real aa=1./(r0*cp);
+  115 : 
+  116 : //real aa=1./(den*cp);
+  117 : 
+  118 : real nu0=0.000015111;
+  119 : real nu1=0.000016982;
+  120 : real A1=(nu0-nu1)/(T0-T1);
+  121 : 
+  122 : real den0=1.2047;
+  123 : real den1=1.1275;
+  124 : real A2=(den0-den1)/(T0-T1);
+  125 : 
+  126 : real dif0=0.00002117;
+  127 : real dif1=0.000023848;
+  128 : real A=(dif0-dif1)/(T0-T1);
+  129 : 
+  130 : func real den(real T) { return (den0 + A2*(T-T0));}
+  131 : func real mu(real T)  { return (nu0  + A1*(T-T0));}
+  132 : func real dif(real T) { return (dif0 +  A*(T-T0));}
+  133 : func real aa(real T)  { return (1./(den(T)*cp));}
+  134 : 
+  135 : 
+  136 : real epsi = 1.e-10;
+  137 : 
+  138 : // --- Perfil de viento logaritmico bidireccional (sustituye u1=1,u2=4 constante) ---
+  139 : // Se conserva la direccion/proporcion del viento original (1:4) y se hace crecer
+  140 : // la magnitud con la altura segun la ley logaritmica estandar de capa limite atmosferica.
+  141 : real Uref10   = sqrt(1.^2+4.^2);      // magnitud original de referencia (m/s)
+  142 : real z0log    = 0.30;                  // longitud de rugosidad, igual que caso 2D/chimenea
+  143 : real zReflog  = 10.0;                  // altura de referencia meteorologica (m)
+  144 : real thetaWind = atan2(4.,1.);         // angulo del viento original, constante con la altura
+  145 : func real zClamp() { return max(z,0.0); } // evita log de argumento negativo en el pequeno tramo z<0 del cimiento
+  146 : func real Ulog() { return Uref10*log((zClamp()+z0log)/z0log)/log((zReflog+z0log)/z0log); }
+  147 : 
+  148 : 
+  149 : 
+  150 : 
+  151 : macro dn(u) (N.x*dx(u)+N.y*dy(u)+N.z*dz(u))  )  //EOM
+  152 : 
+  153 : fespace XXh(Th,P03d) nb item = 1
+number of pfes in a composite FESpace=0
+args.size()=2
+;
+  154 : XXh regiones2= region;
+  155 : 
+  156 : XXh K1=(0.024*(regiones==46));
+  157 : 
+  158 : 
+  159 : macro Grad(u) [dx(u),dy(u),dz(u)] )  //
+  160 : macro div(u1,u2,u3) (dx(u1)+dy(u2)+dz(u3))  )  //
+  161 : 
+  162 : real epsilon=0.000001;
+  163 : 
+  164 : fespace Vh(Th,P13d) nb item = 1
+number of pfes in a composite FESpace=0
+args.size()=2
+;
+  165 : Vh u1 = 0, u2 =0, u3=0, p = 0, q=0, w1,w2,w3,w4;
+  166 : Vh ubar1=0, ubar2=0, ubar3=0, wbar; // velocidad filtrada de Leray
+  167 : 
+  168 : Vh T,Toldt,vv;
+  169 : Toldt=T0;
+  170 : 
+  171 : real Text;
+  172 : Text=27.;
+  173 : 
+  174 : Vh lambda=0;
+  175 : Vh pp=0,qq=0;
+  176 : 
+  177 : Vh u1old = u1, u2old = u2, u3old = u3, pold=p;
+  178 : Vh f=convect([u1,u2,u3],-dt,u1old)
+  -- Convert number of Convect case:  .... 1
+, g1=convect([u1,u2,u3],-dt,u2old)
+  -- Convert number of Convect case:  .... 2
+, g2=convect([u1,u2,u3],-dt,u3old)
+  -- Convert number of Convect case:  .... 3
+;
+  179 : 
+  180 : Xh TS,vvv; // temperatura y funcion test
+  181 : 
+  182 : int i;
+  183 : int h=10;
+  184 : int[int] Interfaceairesolido=1:45;
+  185 : int[int] Interfacesolidosolido=[47,48,49,50,52,53,54,55,56,57,59,60,61,62,65,69,73,76,77,80,82,86];
+  186 : 
+  187 : // --- Filtro de Leray (Helmholtz): ubar - delta^2 Lap(ubar) = u ---
+  188 : // La forma bilineal es la misma para las 3 componentes -> se factoriza UNA sola vez
+  189 : // y se reutiliza para las 3 resoluciones (misma tecnica que en el caso de la chimenea).
+  190 : varf vFilterA(ubar,wbar)nbarray  = 0
+l.size()= 2
+ = int3d(Th)(ubar*wbar + deltaLeray^2*(Grad(ubar)  [dx(ubar),dy(ubar),dz(ubar)]'*Grad(wbar)  [dx(wbar),dy(wbar),dz(wbar)]));
+  191 : varf vFilterRhs(unused,wbar)nbarray  = 0
+l.size()= 2
+ = int3d(Th)(u1*wbar); // placeholder, se reconstruye cada vez con el campo correcto
+  192 : matrix AFilter = vFilterA(Vh,Vh,solver=sparsesolver);
+  193 : 
+  194 : 
+  195 : problem LAPLACE (TS,vvv,solver=GMRES,nbiter=100)nbarray  = 0
+l.size()= 4
+ = int3d(solidmesh3d)(K*dx(TS)*dx(vvv)+K*dy(TS)*dy(vvv)+K*dz(TS)*dz(vvv))
+  196 : + int3d(solidmesh3d)( -vvv) +int2d(solidmesh3d,Interfaceairesolido)(-lambda*vvv)
+  197 : -int2d(solidmesh3d,Interfacesolidosolido)(K*dn(TS)   (N.x*dx(TS)+N.y*dy(TS)+N.z*dz(TS)) *vvv)+on(48,56,69,TS=20.9)+on(Interfaceairesolido,TS=T);realtype= 1, complextype=0
+realtype= 1, complextype=0
+  -- Problem type  ( complex : 0 )  
+
+  198 : 
+  199 : problem calor2 (T,vv,solver=GMRES,nbiter=100)nbarray  = 0
+l.size()= 4
+ = int3d(Th)((u1*dx(T)*vv+u2*dy(T)*vv+u3*dz(T)*vv))+int3d(Th) (K1*(dx(T)*dx(vv)+dy(T)*dy(vv)
+  200 : +dz(T)*dz(vv)))+ int3d(Th)( -vv)+ int2d(Th,Interfaceairesolido)(-lambda*vv)+int2d(Th,Interfaceairesolido)(h*T*vv)- int2d(Th,Interfaceairesolido)(h*Text*vv)
+  201 : +on(12,20,27,T=32)+on(1,2,3,4,5,T=28)+on(6,29,36,T=20.9);realtype= 1, complextype=0
+realtype= 1, complextype=0
+  -- Problem type  ( complex : 0 )  
+
+  202 : 
+  203 : 
+  204 : varf b(TS,vvv,solver=GMRES)nbarray  = 0
+l.size()= 3
+ =int2d(solidmesh3d,Interfaceairesolido)(TS*vvv);
+  205 : matrix B= b(Vh,Vh,solver=GMRES);
+  206 : 
+  207 : 
+  208 : func real[int] BoundaryProblem(real[int] &l)
+  209 : {
+  210 :    lambda[]=l;
+  211 :    calor2;
+  212 :    LAPLACE;
+  213 :    i++;
+  214 :    vv=-(T-TS);
+  215 :    lambda[]=B*vv[];
+  216 :    return lambda[] ;
+  217 : };
+  218 : 
+  219 : 
+  220 : int nIterRun = 20; // reducido de 100 a 20 para una primera prueba preliminar rapida;
+  221 :                     // sube este numero para la corrida completa una vez visto el coste por iteracion
+  222 : for(int iter=0;iter<nIterRun;++iter)
+  223 : {
+  224 : 
+  225 : Vh u1old = u1, u2old = u2, u3old = u3, pold=p;
+  226 : 
+  227 : 
+  228 :     t=t+dt;
+  229 : real TIME;
+  230 : real vol= int3d(Th)(1.);
+  231 : 
+  232 : // --- Filtro de Leray: ubar_i a partir de u_i (velocidad del paso anterior) ---
+  233 : real[int] rhsF1 = int3d(Th)(u1*wbar);
+  234 : real[int] rhsF2 = int3d(Th)(u2*wbar);
+  235 : real[int] rhsF3 = int3d(Th)(u3*wbar);
+  236 : ubar1[] = AFilter^-1*rhsF1;
+  237 : ubar2[] = AFilter^-1*rhsF2;
+  238 : ubar3[] = AFilter^-1*rhsF3;
+  239 : 
+  240 : // --- Transporte por caracteristicas usando la velocidad FILTRADA (metodo de Pironneau) ---
+  241 : Vh f=convect([ubar1,ubar2,ubar3],-dt,u1old)
+  -- Convert number of Convect case:  .... 4
+, g1=convect([ubar1,ubar2,ubar3],-dt,u2old)
+  -- Convert number of Convect case:  .... 5
+, g2=convect([ubar1,ubar2,ubar3],-dt,u3old)
+  -- Convert number of Convect case:  .... 6
+;
+  242 : 
+  243 : // --- Divergencia de la velocidad filtrada, para el termino skew-simetrico ---
+  244 : Vh divUbar = dx(ubar1)+dy(ubar2)+dz(ubar3);
+  245 : 
+  246 : solve pb4u(u1,w1,init=iter,solver=sparsesolver)nbarray  = 0
+l.size()= 4
+
+  247 : =int3d(Th)(u1*w1/dt +nu*(dx(u1)*dx(w1)+dy(u1)*dy(w1)+dz(u1)*dz(w1)))
+  248 : -int3d(Th)((f/dt-dx(p)-0.5*divUbar*u1old)*w1)
+  249 : +on(1,2,u1=Ulog()*cos(thetaWind))
+  250 : + on (3,4,5, u1=f)
+  251 : // caras  3,4 y 5 son de flujo libre , posibles salidas CUBO
+  252 : 
+  253 : +on(Interfaceairesolido,u1=0);realtype= 1, complextype=0
+realtype= 1, complextype=0
+  -- Problem type  ( complex : 0 )  
+
+  254 : 
+  255 : solve pb4v(u2,w2,init=iter,solver=sparsesolver)nbarray  = 0
+l.size()= 4
+
+  256 : = int3d(Th)(u2*w2/dt +nu*(dx(u2)*dx(w2)+dy(u2)*dy(w2)+dz(u2)*dz(w2)))
+  257 : -int3d(Th)((g1/dt-dy(p)-0.5*divUbar*u2old)*w2)
+  258 : 
+  259 : +on(1,2,u2=Ulog()*sin(thetaWind))
+  260 : 
+  261 :  + on (3,4,5, u2=g1)
+  262 : 
+  263 : +on(Interfaceairesolido,u2=0);realtype= 1, complextype=0
+realtype= 1, complextype=0
+  -- Problem type  ( complex : 0 )  
+
+  264 : 
+  265 : solve pb4w(u3,w3,init=iter,solver=sparsesolver)nbarray  = 0
+l.size()= 4
+
+  266 : = int3d(Th)(u3*w3/dt +nu*(dx(u3)*dx(w3)+dy(u3)*dy(w3)+dz(u3)*dz(w3)))
+  267 : -int3d(Th)((g2/dt-dz(p)-0.5*divUbar*u3old)*w3)
+  268 : +int3d(Th)(epsilon*p*w3)
+  269 : 
+  270 : +on(1,2,u3=0)
+  271 : 
+  272 : + on (3,4,5, u3=g2)
+  273 : 
+  274 : +on(Interfaceairesolido,u3=0);realtype= 1, complextype=0
+realtype= 1, complextype=0
+  -- Problem type  ( complex : 0 )  
+
+  275 : 
+  276 : real meandiv = int3d(Th)(dx(u1)+dy(u2)+dz(u3))/vol;
+  277 : real divL2 = sqrt(int3d(Th)((dx(u1)+dy(u2)+dz(u3))^2));
+  278 : real Qsur   = int2d(Th,1)(u1*N.x+u2*N.y+u3*N.z);
+  279 : real Qoeste = int2d(Th,2)(u1*N.x+u2*N.y+u3*N.z);
+  280 : real Qsalida = int2d(Th,3,4,5)(u1*N.x+u2*N.y+u3*N.z);
+  281 : cout << "CHECK iter=" << iter << " t=" << t << " divL2=" << divL2 << " meandiv=" << meandiv
+  282 :      << " Qsur=" << Qsur << " Qoeste=" << Qoeste << " Qsalida=" << Qsalida
+  283 :      << " umax=" << u1[].linfty << endl;
+  284 : 
+  285 : solve pb4p(q,w4,init=iter,solver=sparsesolver)nbarray  = 0
+l.size()= 4
+= int3d(Th)(dx(q)*dx(w4)+dy(q)*dy(w4)+dz(q)*dz(w4))
+  286 : - int3d(Th)((dx(u1)+ dy(u2)+dz(u3))*w4/dt)
+  287 : + on(3,4,5,q=0);realtype= 1, complextype=0
+realtype= 1, complextype=0
+  -- Problem type  ( complex : 0 )  
+
+  288 : 
+  289 : real meanpq = int3d(Th)(pold - q)/vol;
+  290 : 
+  291 : p = pold-q-meanpq;
+  292 : u1 = u1 + dx(q)*dt;
+  293 : u2 = u2 + dy(q)*dt;
+  294 : u3 = u3 + dz(q)*dt;
+  295 : 
+  296 : savevtk("output2-"+iter+".vtk", Th, [u1,u2,u3], dataname="velocidad(m/s)")Write Mesh and Solutions in VTK Formats
+;
+  297 : //medit("velocidad temperatura", Th, [u1,u2,u3],t);
+  298 : 
+  299 : LinearGMRES(BoundaryProblem,pp[],qq[],eps=1.e-6,nbiter=10);
+  300 : //  compute the final solution, because CG works with increment
+  301 : BoundaryProblem(pp[]); // solve again  to have right u1,u2
+  302 : cout << " -- CPU time  schwarz-gc:" <<  clock()-cpu << endl;
+  303 : 
+  304 : 
+  305 : 
+  306 : savevtk("temperaturaaire-"+iter+".vtk",Th,T,dataname="temperatura_aire")Write Mesh and Solutions in VTK Formats
+;
+  307 : savevtk("temperaturaedificio-"+iter+".vtk",solidmesh3d,TS,dataname="temperatura_solido")Write Mesh and Solutions in VTK Formats
+;
+  308 : 
+  309 : // Temperaturas medias en superficies clave, para comparar pared lateral exterior del
+  310 : // patio (etiqueta 10) frente a cubierta (12,20,27) y resto de fachadas (1,2,3,4,5).
+  311 : real areaPatioLateral = int2d(solidmesh3d,10)(1.0);
+  312 : real TmeanPatioLateral = (areaPatioLateral>0.) ? int2d(solidmesh3d,10)(TS)/areaPatioLateral : -1.0;
+  313 : real areaCubierta = int2d(solidmesh3d,12,20,27)(1.0);
+  314 : real TmeanCubierta = (areaCubierta>0.) ? int2d(solidmesh3d,12,20,27)(TS)/areaCubierta : -1.0;
+  315 : cout << "TEMP iter=" << iter << " T_patio_lateral=" << TmeanPatioLateral << " T_cubierta=" << TmeanCubierta << endl;
+  316 : 
+  317 : }
+  318 :  sizestack + 1024 =26464  ( 25440 )
+
+ReadMesh3 muro principal 3d.mesh
+data file muro principal 3d.mesh contains only a Mesh3, creation the MeshS associated.
+  -- Mesh3(load): muro principal 3d.mesh, MeshVersionFormatted:= 2, space dimension:= 3, num Tetrahedron elts:= 66816, num vertice:= 14945 num Triangle boundaries:= 14624
+read mesh ok 0Mesh3, num Tetra:= 66816, num Vertice:= 14945 num boundary Triangles:= 14624
+  -- GMesh3 , n V: 14945 , n Elm: 66816 , n B Elm: 14624mes 58.82 633.46 , bb: (-0.1 -0.1 -2.2e-17) , (12.6 25.1 6)
+  -- BuildAdj:0x55d1c0f3a6a0 nb Elememt 66816 nb vertices 14945
+             : nb adj  = 140944 on border 14624 nea = 4 nva = 3 nb no manifold border 0
+
+    ~HashTable:   Cas moyen : 3.27947
+ number of real boundary element 14624
+  -- End of read: Mesh3 mesure = 58.82 border mesure 633.46
+  -- Mesh3 : muro principal 3d.mesh, space dimension 3, num Tetrahedron elts 66816, num Vertice 14945 num Bordary elts 14624
+ReadMesh3 muro patio lateral 3d.mesh
+data file muro patio lateral 3d.mesh contains only a Mesh3, creation the MeshS associated.
+  -- Mesh3(load): muro patio lateral 3d.mesh, MeshVersionFormatted:= 2, space dimension:= 3, num Tetrahedron elts:= 78976, num vertice:= 17285 num Triangle boundaries:= 15904
+read mesh ok 0Mesh3, num Tetra:= 78976, num Vertice:= 17285 num boundary Triangles:= 15904
+  -- GMesh3 , n V: 17285 , n Elm: 78976 , n B Elm: 15904mes 64.4 666.6 , bb: (6.15 12.9 0) , (15.1 25.1 8)
+  -- BuildAdj:0x55d1c0f3a800 nb Elememt 78976 nb vertices 17285
+             : nb adj  = 165904 on border 15904 nea = 4 nva = 3 nb no manifold border 0
+
+    ~HashTable:   Cas moyen : 3.32164
+ number of real boundary element 15904
+  -- End of read: Mesh3 mesure = 64.4 border mesure 666.6
+  -- Mesh3 : muro patio lateral 3d.mesh, space dimension 3, num Tetrahedron elts 78976, num Vertice 17285 num Bordary elts 15904
+ReadMesh3 cubierta principal 3d.mesh
+data file cubierta principal 3d.mesh contains only a Mesh3, creation the MeshS associated.
+  -- Mesh3(load): cubierta principal 3d.mesh, MeshVersionFormatted:= 2, space dimension:= 3, num Tetrahedron elts:= 69632, num vertice:= 15090 num Triangle boundaries:= 13472
+read mesh ok 0Mesh3, num Tetra:= 69632, num Vertice:= 15090 num boundary Triangles:= 13472
+  -- GMesh3 , n V: 15090 , n Elm: 69632 , n B Elm: 13472mes 104.816 629.407 , bb: (-0.1 -0.1 6) , (12.6 25.1 7.16)
+  -- BuildAdj:0x55d1c0f3a8f0 nb Elememt 69632 nb vertices 15090
+             : nb adj  = 146000 on border 13472 nea = 4 nva = 3 nb no manifold border 0
+
+    ~HashTable:   Cas moyen : 3.34183
+ number of real boundary element 13472
+  -- End of read: Mesh3 mesure = 104.816 border mesure 629.407
+  -- Mesh3 : cubierta principal 3d.mesh, space dimension 3, num Tetrahedron elts 69632, num Vertice 15090 num Bordary elts 13472
+ReadMesh3 aleron exterior patio central 3d.mesh
+data file aleron exterior patio central 3d.mesh contains only a Mesh3, creation the MeshS associated.
+  -- Mesh3(load): aleron exterior patio central 3d.mesh, MeshVersionFormatted:= 2, space dimension:= 3, num Tetrahedron elts:= 10816, num vertice:= 2770 num Triangle boundaries:= 3456
+read mesh ok 0Mesh3, num Tetra:= 10816, num Vertice:= 2770 num boundary Triangles:= 3456
+  -- GMesh3 , n V: 2770 , n Elm: 10816 , n B Elm: 3456mes 0.338624 18.6243 , bb: (4.156 9.4 7.12) , (8.344 16.594 7.16)
+  -- BuildAdj:0x55d1c0f3a9e0 nb Elememt 10816 nb vertices 2770
+             : nb adj  = 23360 on border 3456 nea = 4 nva = 3 nb no manifold border 0
+
+    ~HashTable:   Cas moyen : 3.0662
+ number of real boundary element 3456
+  -- End of read: Mesh3 mesure = 0.338624 border mesure 18.6243
+  -- Mesh3 : aleron exterior patio central 3d.mesh, space dimension 3, num Tetrahedron elts 10816, num Vertice 2770 num Bordary elts 3456
+ReadMesh3 aleron interior patio central 3d.mesh
+data file aleron interior patio central 3d.mesh contains only a Mesh3, creation the MeshS associated.
+  -- Mesh3(load): aleron interior patio central 3d.mesh, MeshVersionFormatted:= 2, space dimension:= 3, num Tetrahedron elts:= 7744, num vertice:= 2010 num Triangle boundaries:= 2560
+read mesh ok 0Mesh3, num Tetra:= 7744, num Vertice:= 2010 num boundary Triangles:= 2560
+  -- GMesh3 , n V: 2010 , n Elm: 7744 , n B Elm: 2560mes 0.0071696 1.7924 , bb: (4.756 10 7.12) , (7.744 15.994 7.16)
+  -- BuildAdj:0x55d1c1374b50 nb Elememt 7744 nb vertices 2010
+             : nb adj  = 16768 on border 2560 nea = 4 nva = 3 nb no manifold border 0
+
+    ~HashTable:   Cas moyen : 3.13651
+ number of real boundary element 2560
+  -- End of read: Mesh3 mesure = 0.0071696 border mesure 1.7924
+  -- Mesh3 : aleron interior patio central 3d.mesh, space dimension 3, num Tetrahedron elts 7744, num Vertice 2010 num Bordary elts 2560
+ReadMesh3 techo patio central 3d.mesh
+data file techo patio central 3d.mesh contains only a Mesh3, creation the MeshS associated.
+  -- Mesh3(load): techo patio central 3d.mesh, MeshVersionFormatted:= 2, space dimension:= 3, num Tetrahedron elts:= 56640, num vertice:= 12735 num Triangle boundaries:= 12416
+read mesh ok 0Mesh3, num Tetra:= 56640, num Vertice:= 12735 num boundary Triangles:= 12416
+  -- GMesh3 , n V: 12735 , n Elm: 56640 , n B Elm: 12416mes 3.01285 62.5333 , bb: (4.156 9.4 8.16) , (8.344 16.594 8.26)
+  -- BuildAdj:0x55d1c1374c40 nb Elememt 56640 nb vertices 12735
+             : nb adj  = 119488 on border 12416 nea = 4 nva = 3 nb no manifold border 0
+
+    ~HashTable:   Cas moyen : 3.22913
+ number of real boundary element 12416
+  -- End of read: Mesh3 mesure = 3.01285 border mesure 62.5333
+  -- Mesh3 : techo patio central 3d.mesh, space dimension 3, num Tetrahedron elts 56640, num Vertice 12735 num Bordary elts 12416
+ReadMesh3 pilares patio central 3d.mesh
+data file pilares patio central 3d.mesh contains only a Mesh3, creation the MeshS associated.
+  -- Mesh3(load): pilares patio central 3d.mesh, MeshVersionFormatted:= 2, space dimension:= 3, num Tetrahedron elts:= 7680, num vertice:= 2090 num Triangle boundaries:= 2688
+read mesh ok 0Mesh3, num Tetra:= 7680, num Vertice:= 2090 num boundary Triangles:= 2688
+  -- GMesh3 , n V: 2090 , n Elm: 7680 , n B Elm: 2688mes 0.4 8.8 , bb: (4.556 9.8 7.16) , (7.944 16.194 8.16)
+  -- BuildAdj:0x55d1c1374d30 nb Elememt 7680 nb vertices 2090
+             : nb adj  = 16704 on border 2688 nea = 4 nva = 3 nb no manifold border 0
+
+    ~HashTable:   Cas moyen : 2.84549
+ number of real boundary element 2688
+  -- End of read: Mesh3 mesure = 0.4 border mesure 8.8
+  -- Mesh3 : pilares patio central 3d.mesh, space dimension 3, num Tetrahedron elts 7680, num Vertice 2090 num Bordary elts 2688
+ReadMesh3 panel patio central 3d.mesh
+data file panel patio central 3d.mesh contains only a Mesh3, creation the MeshS associated.
+  -- Mesh3(load): panel patio central 3d.mesh, MeshVersionFormatted:= 2, space dimension:= 3, num Tetrahedron elts:= 13568, num vertice:= 3045 num Triangle boundaries:= 2944
+read mesh ok 0Mesh3, num Tetra:= 13568, num Vertice:= 3045 num boundary Triangles:= 2944
+  -- GMesh3 , n V: 3045 , n Elm: 13568 , n B Elm: 2944mes 1.08 180.504 , bb: (4.744 10 -7.2885e-17) , (7.756 16.006 6)
+  -- BuildAdj:0x55d1c1374e20 nb Elememt 13568 nb vertices 3045
+             : nb adj  = 28608 on border 2944 nea = 4 nva = 3 nb no manifold border 0
+
+    ~HashTable:   Cas moyen : 3.30207
+ number of real boundary element 2944
+  -- End of read: Mesh3 mesure = 1.08 border mesure 180.504
+  -- Mesh3 : panel patio central 3d.mesh, space dimension 3, num Tetrahedron elts 13568, num Vertice 3045 num Bordary elts 2944
+ReadMesh3 aleron exterior patio lateral 3d.mesh
+data file aleron exterior patio lateral 3d.mesh contains only a Mesh3, creation the MeshS associated.
+  -- Mesh3(load): aleron exterior patio lateral 3d.mesh, MeshVersionFormatted:= 2, space dimension:= 3, num Tetrahedron elts:= 21568, num vertice:= 5520 num Triangle boundaries:= 6880
+read mesh ok 0Mesh3, num Tetra:= 21568, num Vertice:= 5520 num boundary Triangles:= 6880
+  -- GMesh3 , n V: 5520 , n Elm: 21568 , n B Elm: 6880mes 0.886 47.844 , bb: (5.65 12.4 7.96) , (15.6 25.6 8)
+  -- BuildAdj:0x55d1c1374f10 nb Elememt 21568 nb vertices 5520
+             : nb adj  = 46576 on border 6880 nea = 4 nva = 3 nb no manifold border 0
+
+    ~HashTable:   Cas moyen : 3.06747
+ number of real boundary element 6880
+  -- End of read: Mesh3 mesure = 0.886 border mesure 47.844
+  -- Mesh3 : aleron exterior patio lateral 3d.mesh, space dimension 3, num Tetrahedron elts 21568, num Vertice 5520 num Bordary elts 6880
+ReadMesh3 aleron interior patio lateral 3d.mesh
+data file aleron interior patio lateral 3d.mesh contains only a Mesh3, creation the MeshS associated.
+  -- Mesh3(load): aleron interior patio lateral 3d.mesh, MeshVersionFormatted:= 2, space dimension:= 3, num Tetrahedron elts:= 12096, num vertice:= 3040 num Triangle boundaries:= 3680
+read mesh ok 0Mesh3, num Tetra:= 12096, num Vertice:= 3040 num boundary Triangles:= 3680
+  -- GMesh3 , n V: 3040 , n Elm: 12096 , n B Elm: 3680mes 0.016264 4.066 , bb: (6.35 13.1 7.96) , (14.9 24.9 8)
+  -- BuildAdj:0x55d1c1375000 nb Elememt 12096 nb vertices 3040
+             : nb adj  = 26032 on border 3680 nea = 4 nva = 3 nb no manifold border 0
+
+    ~HashTable:   Cas moyen : 3.09196
+ number of real boundary element 3680
+  -- End of read: Mesh3 mesure = 0.016264 border mesure 4.066
+  -- Mesh3 : aleron interior patio lateral 3d.mesh, space dimension 3, num Tetrahedron elts 12096, num Vertice 3040 num Bordary elts 3680
+ReadMesh3 techo patio lateral 3d.mesh
+data file techo patio lateral 3d.mesh contains only a Mesh3, creation the MeshS associated.
+  -- Mesh3(load): techo patio lateral 3d.mesh, MeshVersionFormatted:= 2, space dimension:= 3, num Tetrahedron elts:= 22016, num vertice:= 5065 num Triangle boundaries:= 5184
+read mesh ok 0Mesh3, num Tetra:= 22016, num Vertice:= 5065 num boundary Triangles:= 5184
+  -- GMesh3 , n V: 5065 , n Elm: 22016 , n B Elm: 5184mes 27.0425 122.685 , bb: (6.05 12.8 8.8) , (15.2 25.2 9.8)
+  -- BuildAdj:0x55d1c13750f0 nb Elememt 22016 nb vertices 5065
+             : nb adj  = 46624 on border 5184 nea = 4 nva = 3 nb no manifold border 0
+
+    ~HashTable:   Cas moyen : 3.24616
+ number of real boundary element 5184
+  -- End of read: Mesh3 mesure = 27.0425 border mesure 122.685
+  -- Mesh3 : techo patio lateral 3d.mesh, space dimension 3, num Tetrahedron elts 22016, num Vertice 5065 num Bordary elts 5184
+ReadMesh3 pilares patio lateral 3d.mesh
+data file pilares patio lateral 3d.mesh contains only a Mesh3, creation the MeshS associated.
+  -- Mesh3(load): pilares patio lateral 3d.mesh, MeshVersionFormatted:= 2, space dimension:= 3, num Tetrahedron elts:= 10368, num vertice:= 3030 num Triangle boundaries:= 4224
+read mesh ok 0Mesh3, num Tetra:= 10368, num Vertice:= 3030 num boundary Triangles:= 4224
+  -- GMesh3 , n V: 3030 , n Elm: 10368 , n B Elm: 4224mes 1.19669 25.5285 , bb: (6.15 12.9 8) , (15.1 25.1 9.73103)
+  -- BuildAdj:0x55d1c13751e0 nb Elememt 10368 nb vertices 3030
+             : nb adj  = 22848 on border 4224 nea = 4 nva = 3 nb no manifold border 0
+
+    ~HashTable:   Cas moyen : 2.72654
+ number of real boundary element 4224
+  -- End of read: Mesh3 mesure = 1.19669 border mesure 25.5285
+  -- Mesh3 : pilares patio lateral 3d.mesh, space dimension 3, num Tetrahedron elts 10368, num Vertice 3030 num Bordary elts 4224
+ReadMesh3 marcos externos puertas y ventanas muro principal 3d.mesh
+data file marcos externos puertas y ventanas muro principal 3d.mesh contains only a Mesh3, creation the MeshS associated.
+  -- Mesh3(load): marcos externos puertas y ventanas muro principal 3d.mesh, MeshVersionFormatted:= 2, space dimension:= 3, num Tetrahedron elts:= 32704, num vertice:= 8063 num Triangle boundaries:= 9344
+read mesh ok 0Mesh3, num Tetra:= 32704, num Vertice:= 8063 num boundary Triangles:= 9344
+  -- GMesh3 , n V: 8063 , n Elm: 32704 , n B Elm: 9344mes 0.22267 18.9538 , bb: (0.05 0.05 -2.2e-17) , (12.45 23.5 3)
+  -- BuildAdj:0x55d1c13752d0 nb Elememt 32704 nb vertices 8063
+             : nb adj  = 70080 on border 9344 nea = 4 nva = 3 nb no manifold border 0
+
+    ~HashTable:   Cas moyen : 2.97989
+ number of real boundary element 9344
+  -- End of read: Mesh3 mesure = 0.22267 border mesure 18.9538
+  -- Mesh3 : marcos externos puertas y ventanas muro principal 3d.mesh, space dimension 3, num Tetrahedron elts 32704, num Vertice 8063 num Bordary elts 9344
+ReadMesh3 marcos externos muro patio lateral 3d.mesh
+data file marcos externos muro patio lateral 3d.mesh contains only a Mesh3, creation the MeshS associated.
+  -- Mesh3(load): marcos externos muro patio lateral 3d.mesh, MeshVersionFormatted:= 2, space dimension:= 3, num Tetrahedron elts:= 10752, num vertice:= 2576 num Triangle boundaries:= 2816
+read mesh ok 0Mesh3, num Tetra:= 10752, num Vertice:= 2576 num boundary Triangles:= 2816
+  -- GMesh3 , n V: 2576 , n Elm: 10752 , n B Elm: 2816mes 0.0725 5.8 , bb: (6.9445 14 1) , (12.45 22.45 2)
+  -- BuildAdj:0x55d1c1375390 nb Elememt 10752 nb vertices 2576
+             : nb adj  = 22912 on border 2816 nea = 4 nva = 3 nb no manifold border 0
+
+    ~HashTable:   Cas moyen : 3.04528
+ number of real boundary element 2816
+  -- End of read: Mesh3 mesure = 0.0725 border mesure 5.8
+  -- Mesh3 : marcos externos muro patio lateral 3d.mesh, space dimension 3, num Tetrahedron elts 10752, num Vertice 2576 num Bordary elts 2816
+ReadMesh3 marcos internos puertas y ventanas muro principal 3d.mesh
+data file marcos internos puertas y ventanas muro principal 3d.mesh contains only a Mesh3, creation the MeshS associated.
+  -- Mesh3(load): marcos internos puertas y ventanas muro principal 3d.mesh, MeshVersionFormatted:= 2, space dimension:= 3, num Tetrahedron elts:= 85312, num vertice:= 19866 num Triangle boundaries:= 20864
+read mesh ok 0Mesh3, num Tetra:= 85312, num Vertice:= 19866 num boundary Triangles:= 20864
+  -- GMesh3 , n V: 19866 , n Elm: 85312 , n B Elm: 20864mes 0.244375 19.55 , bb: (0.1 0.105 0.005) , (12.4 23.445 2.045)
+  -- BuildAdj:0x55d1c1375490 nb Elememt 85312 nb vertices 19866
+             : nb adj  = 181056 on border 20864 nea = 4 nva = 3 nb no manifold border 0
+
+    ~HashTable:   Cas moyen : 3.04738
+ number of real boundary element 20864
+  -- End of read: Mesh3 mesure = 0.244375 border mesure 19.55
+  -- Mesh3 : marcos internos puertas y ventanas muro principal 3d.mesh, space dimension 3, num Tetrahedron elts 85312, num Vertice 19866 num Bordary elts 20864
+ReadMesh3 marcos internos ventanas patio lateral 3d.mesh
+data file marcos internos ventanas patio lateral 3d.mesh contains only a Mesh3, creation the MeshS associated.
+  -- Mesh3(load): marcos internos ventanas patio lateral 3d.mesh, MeshVersionFormatted:= 2, space dimension:= 3, num Tetrahedron elts:= 30720, num vertice:= 7200 num Triangle boundaries:= 7680
+read mesh ok 0Mesh3, num Tetra:= 30720, num Vertice:= 7200 num boundary Triangles:= 7680
+  -- GMesh3 , n V: 7200 , n Elm: 30720 , n B Elm: 7680mes 0.086625 6.93 , bb: (6.95012 14.0056 1.055) , (12.4 22.4 1.945)
+  -- BuildAdj:0x55d1c1375550 nb Elememt 30720 nb vertices 7200
+             : nb adj  = 65280 on border 7680 nea = 4 nva = 3 nb no manifold border 0
+
+    ~HashTable:   Cas moyen : 3.05805
+ number of real boundary element 7680
+  -- End of read: Mesh3 mesure = 0.086625 border mesure 6.93
+  -- Mesh3 : marcos internos ventanas patio lateral 3d.mesh, space dimension 3, num Tetrahedron elts 30720, num Vertice 7200 num Bordary elts 7680
+ReadMesh3 cristales ventanas muro principal 3d.mesh
+data file cristales ventanas muro principal 3d.mesh contains only a Mesh3, creation the MeshS associated.
+  -- Mesh3(load): cristales ventanas muro principal 3d.mesh, MeshVersionFormatted:= 2, space dimension:= 3, num Tetrahedron elts:= 14080, num vertice:= 4228 num Triangle boundaries:= 6016
+read mesh ok 0Mesh3, num Tetra:= 14080, num Vertice:= 4228 num boundary Triangles:= 6016
+  -- GMesh3 , n V: 4228 , n Elm: 14080 , n B Elm: 6016mes 0.550992 73.0165 , bb: (0.125 0.075 0.055) , (12.375 23.395 2.98)
+  -- BuildAdj:0x55d1c1375610 nb Elememt 14080 nb vertices 4228
+             : nb adj  = 31168 on border 6016 nea = 4 nva = 3 nb no manifold border 0
+
+    ~HashTable:   Cas moyen : 2.66536
+ number of real boundary element 6016
+  -- End of read: Mesh3 mesure = 0.550992 border mesure 73.0165
+  -- Mesh3 : cristales ventanas muro principal 3d.mesh, space dimension 3, num Tetrahedron elts 14080, num Vertice 4228 num Bordary elts 6016
+ReadMesh3 cristales ventanas patio lateral 3d.mesh
+data file cristales ventanas patio lateral 3d.mesh contains only a Mesh3, creation the MeshS associated.
+  -- Mesh3(load): cristales ventanas patio lateral 3d.mesh, MeshVersionFormatted:= 2, space dimension:= 3, num Tetrahedron elts:= 3840, num vertice:= 1250 num Triangle boundaries:= 1920
+read mesh ok 0Mesh3, num Tetra:= 3840, num Vertice:= 1250 num boundary Triangles:= 1920
+  -- GMesh3 , n V: 1250 , n Elm: 3840 , n B Elm: 1920mes 0.153082 14.0624 , bb: (6.95991 14.0154 1.105) , (12.3467 22.3467 1.895)
+  -- BuildAdj:0x55d1c13756d0 nb Elememt 3840 nb vertices 1250
+             : nb adj  = 8640 on border 1920 nea = 4 nva = 3 nb no manifold border 0
+
+    ~HashTable:   Cas moyen : 2.61985
+ number of real boundary element 1920
+  -- End of read: Mesh3 mesure = 0.153082 border mesure 14.0624
+  -- Mesh3 : cristales ventanas patio lateral 3d.mesh, space dimension 3, num Tetrahedron elts 3840, num Vertice 1250 num Bordary elts 1920
+ReadMesh3 suelo parcela 3d.mesh
+data file suelo parcela 3d.mesh contains only a Mesh3, creation the MeshS associated.
+  -- Mesh3(load): suelo parcela 3d.mesh, MeshVersionFormatted:= 2, space dimension:= 3, num Tetrahedron elts:= 113216, num vertice:= 24165 num Triangle boundaries:= 20704
+read mesh ok 0Mesh3, num Tetra:= 113216, num Vertice:= 24165 num boundary Triangles:= 20704
+  -- GMesh3 , n V: 24165 , n Elm: 113216 , n B Elm: 20704mes 248.4 1417.87 , bb: (-1.2 -1.2 -0.36) , (23.8 26.4 0)
+  -- BuildAdj:0x55d1c1fe37a0 nb Elememt 113216 nb vertices 24165
+             : nb adj  = 236784 on border 20704 nea = 4 nva = 3 nb no manifold border 0
+
+    ~HashTable:   Cas moyen : 3.4316
+ number of real boundary element 20704
+  -- End of read: Mesh3 mesure = 248.4 border mesure 1417.87
+  -- Mesh3 : suelo parcela 3d.mesh, space dimension 3, num Tetrahedron elts 113216, num Vertice 24165 num Bordary elts 20704
+ determination of hmin : GluMesh3D + 14945 66816 14624
+ determination of hmin : GluMesh3D + 17285 78976 15904
+ determination of hmin : GluMesh3D + 15090 69632 13472
+ determination of hmin : GluMesh3D + 2770 10816 3456
+ determination of hmin : GluMesh3D + 2010 7744 2560
+ determination of hmin : GluMesh3D + 12735 56640 12416
+ determination of hmin : GluMesh3D + 2090 7680 2688
+ determination of hmin : GluMesh3D + 3045 13568 2944
+ determination of hmin : GluMesh3D + 5520 21568 6880
+ determination of hmin : GluMesh3D + 3040 12096 3680
+ determination of hmin : GluMesh3D + 5065 22016 5184
+ determination of hmin : GluMesh3D + 3030 10368 4224
+ determination of hmin : GluMesh3D + 8063 32704 9344
+ determination of hmin : GluMesh3D + 2576 10752 2816
+ determination of hmin : GluMesh3D + 19866 85312 20864
+ determination of hmin : GluMesh3D + 7200 30720 7680
+ determination of hmin : GluMesh3D + 4228 14080 6016
+ determination of hmin : GluMesh3D + 1250 3840 1920
+      - hmin =4.8828e-07 ,  Bounding Box: -0.1 -0.1 -7.2885e-17 15.6 25.6 9.8
+ creation of : BuildGTree
+ loop over mesh for create new mesh 
+ GluMesh3D + 14945 66816 14624
+ loop over mesh for create new mesh 
+ GluMesh3D + 17285 78976 15904
+ loop over mesh for create new mesh 
+ GluMesh3D + 15090 69632 13472
+ loop over mesh for create new mesh 
+ GluMesh3D + 2770 10816 3456
+ loop over mesh for create new mesh 
+ GluMesh3D + 2010 7744 2560
+ loop over mesh for create new mesh 
+ GluMesh3D + 12735 56640 12416
+ loop over mesh for create new mesh 
+ GluMesh3D + 2090 7680 2688
+ loop over mesh for create new mesh 
+ GluMesh3D + 3045 13568 2944
+ loop over mesh for create new mesh 
+ GluMesh3D + 5520 21568 6880
+ loop over mesh for create new mesh 
+ GluMesh3D + 3040 12096 3680
+ loop over mesh for create new mesh 
+ GluMesh3D + 5065 22016 5184
+ loop over mesh for create new mesh 
+ GluMesh3D + 3030 10368 4224
+ loop over mesh for create new mesh 
+ GluMesh3D + 8063 32704 9344
+ loop over mesh for create new mesh 
+ GluMesh3D + 2576 10752 2816
+ loop over mesh for create new mesh 
+ GluMesh3D + 19866 85312 20864
+ loop over mesh for create new mesh 
+ GluMesh3D + 7200 30720 7680
+ loop over mesh for create new mesh 
+ GluMesh3D + 4228 14080 6016
+ loop over mesh for create new mesh 
+ GluMesh3D + 1250 3840 1920
+ creation of : BuildGTree for border elements
+~GTree  the tree 
+ NbTreeBox = 45971 Nb Vertices = 120280
+ NbTreeBoxSearch 123824546 NbVerticesSearch 7654336 NbSearch 0 ratio: 7654336
+ SizeOf QuadTree3330520
+
+~GTree  the tree 
+ NbTreeBox = 49219 Nb Vertices = 126305
+ NbTreeBoxSearch 8661489 NbVerticesSearch 551367 NbSearch 0 ratio: 551367
+ SizeOf QuadTree3569440
+
+ nbv=120280
+ nbvx=129808
+ nbt=555328
+ nbe=126305
+ nbex=136672
+     Nb of glu3D  point 9528     Nb of glu3D  Boundary faces 10367
+  -- GMesh3 , n V: 120280 , n Elm: 555328 , n B Elm: 126305mes 263.346 2515.88 , bb: (-0.1 -0.1 -7.2885e-17) , (15.6 25.6 9.8)
+  -- BuildAdj:0x55d1c1fe3890 nb Elememt 555328 nb vertices 120280
+             : nb adj  = 1168688 on border 116064 nea = 4 nva = 3 nb no manifold border 0
+
+    ~HashTable:   Cas moyen : 3.24102
+ number of real boundary element 116064
+  -- End of read: mesure = 263.346 border mesure 2515.88
+      timers Mesh3 :0.007941 0.362287 0.00819 0.003929 0.007967
+fin de BuildGTree()
+  -- FESpace: Nb of Nodes 120280 Nb of DoF 120280
+  -- vector function's bound  51 84
+  -- vector function's bound  0 4
+ReadMesh3 air domain 3d.mesh
+data file air domain 3d.mesh contains only a Mesh3, creation the MeshS associated.
+  -- Mesh3(load): air domain 3d.mesh, MeshVersionFormatted:= 2, space dimension:= 3, num Tetrahedron elts:= 949440, num vertice:= 188964 num Triangle boundaries:= 122720
+read mesh ok 0Mesh3, num Tetra:= 949440, num Vertice:= 188964 num boundary Triangles:= 122720
+  -- GMesh3 , n V: 188964 , n Elm: 949440 , n B Elm: 122720mes 83488.3 16064.3 , bb: (-20 -25 -0.36) , (40 45 19.64)
+  -- BuildAdj:0x55d1c3201320 nb Elememt 949440 nb vertices 188964
+             : nb adj  = 1960240 on border 122720 nea = 4 nva = 3 nb no manifold border 0
+
+    ~HashTable:   Cas moyen : 3.42202
+ number of real boundary element 122720
+  -- End of read: Mesh3 mesure = 83488.3 border mesure 16064.3
+  -- Mesh3 : air domain 3d.mesh, space dimension 3, num Tetrahedron elts 949440, num Vertice 188964 num Bordary elts 122720
+  --  int 3d volume  (nQP: 14 ) in  all 
+volume = 83488.3
+  -- boundary int border ( nQP: 7) , all 
+surface area = 16064.3
+    ~HashTable:   Cas moyen : 0
+    ~HashTable:   Cas moyen : 0.400481
+  -- Build Nodes/DF on mesh :   n.v. 188964, n. elmt. 949440, n b. elmt. 122720
+     nb of Nodes 949440    nb of DoF   949440  DFon=0001
+  -- FESpace: Nb of Nodes 949440 Nb of DoF 949440
+  -- vector function's bound  46 46
+ ** BuildDataFindBoundary 126305 0.833571 0.518636 0.261284
+    count  22148239 / 126305 ratio 175.355 max lvp 1570 gtree search box 14707670 v 32740570 CPU =0.544591
