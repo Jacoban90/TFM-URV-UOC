@@ -1,0 +1,1192 @@
+-- FreeFem++ v4.13 (Fri 07 Jul 2023 10:49:44 AM CEST - git v4.13)
+   file : ../forjado_evolutivo.edp
+ Load: lg_fem lg_mesh lg_mesh3 eigenvalue 
+    1 : load "iovtk" load: iovtk 
+
+    2 : include "getARGV.idp" // for gestion of FreeFem++ argument and in version 3.10-1 FH
+    2 :  // F. Hecht 
+    3 :  // Usage:  getARGV(n,defaultvalue) // get the fist used default valeu
+    4 :  //  or     getARGV(after,defaultvalue) // get the arg after after 
+    5 :  // the type of delfaut value given the return type: int,double, string
+    6 :  // Modif version 3.54-2  Jan 2018 (add ones include)
+    7 :  IFMACRO(!getARGVidp)
+    8 &  macro getARGVidp 1 //
+    9 &  
+   10 &  
+   11 &  func int usedARGV(int n)
+   12 & {
+   13 &   int k=1,ii=1,kk=1,ret=-1;
+   14 &   for(int i=1;i<ARGV.n;++i)
+   15 &    {
+   16 &    // cout <<i<< " "<< ARGV[i] << " " <<(ARGV[i]=="-v") << " " << kk << "==" 
+   17 &    //      << n << " " << ARGV[i].rfind("dp") << " " <<ARGV[i].length-2  << endl;
+   18 &         
+   19 &        if(ARGV[i]=="-v") i++;
+   20 &        else if(ARGV[i]=="-fglut") i++;
+   21 &        else if(ARGV[i]=="-ffg") i++;
+   22 &        else if(ARGV[i]=="-glut") i++;
+   23 &        else if(ARGV[i]=="-f") i++;
+   24 &        else if(ARGV[i]=="-nw") ii;
+   25 &        else if(ARGV[i]=="-wait") ii;
+   26 &        else if(ARGV[i]=="-ne") ii;
+   27 &        else if(ARGV[i]=="-cd") ii;
+   28 &        //else if(ARGV[i].rfind(".edp")==ARGV[i].length-4 ) ii;
+   29 &        else if(i==1) ii;
+   30 &        else if(kk++==n) {ret=i;}
+   31 &       // else cout << " +++ \n";
+   32 &      }
+   33 &    //  cout << ret << endl;
+   34 &     return ret;
+   35 & }
+   36 & 
+   37 & func int usedARGV(string after)
+   38 & {
+   39 &   int ret=-1;
+   40 &   for(int i=ARGV.n-1;i>=0;--i)        
+   41 &        if(ARGV[i]==after) { ret=++i; break;}
+   42 &   if(ARGV.n<ret) ret=-1;
+   43 &   return ret;
+   44 & }
+   45 & 
+   46 & func int getARGV(int n,int default)
+   47 & {
+   48 &    int d=default;
+   49 &    int k=usedARGV(n);
+   50 &    if(k>0) d=strtol(ARGV[k]);
+   51 &     return d;
+   52 & }
+   53 & func real getARGV(int n,real default)
+   54 & {
+   55 &    real d=default;
+   56 &    int k=usedARGV(n);
+   57 &    if(k>0) d=strtod(ARGV[k]);
+   58 &    return d;
+   59 & }
+   60 & func string getARGV(int n,string default)
+   61 & {
+   62 &    string d=default;
+   63 &    int k=usedARGV(n);
+   64 &    if(k>0) d=ARGV[k];
+   65 &     return d;
+   66 & }
+   67 & 
+   68 & func int getARGV(string after,int default)
+   69 & {
+   70 &    int d=default;
+   71 &    int k=usedARGV(after);
+   72 &    if(k>0) d=strtol(ARGV[k]);
+   73 &     return d;
+   74 & }
+   75 & func real getARGV(string after,real default)
+   76 & {
+   77 &    real d=default;
+   78 &    int k=usedARGV(after);
+   79 &    if(k>0) d=strtod(ARGV[k]);
+   80 &    return d;
+   81 & }
+   82 & func string getARGV(string after,string default)
+   83 & {
+   84 &    string d=default;
+   85 &    int k=usedARGV(after);
+   86 &    if(k>0) d=ARGV[k];
+   87 &     return d;
+   88 & }
+   89 & 
+   90 & /*
+   91 & cout << getARGV(1,100) << endl;
+   92 & cout << getARGV(2,200.) << endl;
+   93 & cout << getARGV(3,"300.000") << endl;
+   94 & cout << getARGV("-n"," xxx") << endl;
+   95 & */
+   96 & ENDIFMACRO
+    8 @  macro getARGVidp 1 //
+    9 @  
+   10 @  
+   11 @  func int usedARGV(int n)
+   12 @ {
+   13 @   int k=1,ii=1,kk=1,ret=-1;
+   14 @   for(int i=1;i<ARGV.n;++i)
+   15 @    {
+   16 @    // cout <<i<< " "<< ARGV[i] << " " <<(ARGV[i]=="-v") << " " << kk << "==" 
+   17 @    //      << n << " " << ARGV[i].rfind("dp") << " " <<ARGV[i].length-2  << endl;
+   18 @         
+   19 @        if(ARGV[i]=="-v") i++;
+   20 @        else if(ARGV[i]=="-fglut") i++;
+   21 @        else if(ARGV[i]=="-ffg") i++;
+   22 @        else if(ARGV[i]=="-glut") i++;
+   23 @        else if(ARGV[i]=="-f") i++;
+   24 @        else if(ARGV[i]=="-nw") ii;
+   25 @        else if(ARGV[i]=="-wait") ii;
+   26 @        else if(ARGV[i]=="-ne") ii;
+   27 @        else if(ARGV[i]=="-cd") ii;
+   28 @        //else if(ARGV[i].rfind(".edp")==ARGV[i].length-4 ) ii;
+   29 @        else if(i==1) ii;
+   30 @        else if(kk++==n) {ret=i;}
+   31 @       // else cout << " +++ \n";
+   32 @      }
+   33 @    //  cout << ret << endl;
+   34 @     return ret;
+   35 @ }
+   36 @ 
+   37 @ func int usedARGV(string after)
+   38 @ {
+   39 @   int ret=-1;
+   40 @   for(int i=ARGV.n-1;i>=0;--i)        
+   41 @        if(ARGV[i]==after) { ret=++i; break;}
+   42 @   if(ARGV.n<ret) ret=-1;
+   43 @   return ret;
+   44 @ }
+   45 @ 
+   46 @ func int getARGV(int n,int default)
+   47 @ {
+   48 @    int d=default;
+   49 @    int k=usedARGV(n);
+   50 @    if(k>0) d=strtol(ARGV[k]);
+   51 @     return d;
+   52 @ }
+   53 @ func real getARGV(int n,real default)
+   54 @ {
+   55 @    real d=default;
+   56 @    int k=usedARGV(n);
+   57 @    if(k>0) d=strtod(ARGV[k]);
+   58 @    return d;
+   59 @ }
+   60 @ func string getARGV(int n,string default)
+   61 @ {
+   62 @    string d=default;
+   63 @    int k=usedARGV(n);
+   64 @    if(k>0) d=ARGV[k];
+   65 @     return d;
+   66 @ }
+   67 @ 
+   68 @ func int getARGV(string after,int default)
+   69 @ {
+   70 @    int d=default;
+   71 @    int k=usedARGV(after);
+   72 @    if(k>0) d=strtol(ARGV[k]);
+   73 @     return d;
+   74 @ }
+   75 @ func real getARGV(string after,real default)
+   76 @ {
+   77 @    real d=default;
+   78 @    int k=usedARGV(after);
+   79 @    if(k>0) d=strtod(ARGV[k]);
+   80 @    return d;
+   81 @ }
+   82 @ func string getARGV(string after,string default)
+   83 @ {
+   84 @    string d=default;
+   85 @    int k=usedARGV(after);
+   86 @    if(k>0) d=ARGV[k];
+   87 @     return d;
+   88 @ }
+   89 @ 
+   90 @ /*
+   91 @ cout << getARGV(1,100) << endl;
+   92 @ cout << getARGV(2,200.) << endl;
+   93 @ cout << getARGV(3,"300.000") << endl;
+   94 @ cout << getARGV("-n"," xxx") << endl;
+   95 @ */
+   96 @ 
+    3 : 
+    4 : // Caso térmico evolutivo del recinto multicapa.
+    5 : // La temperatura se aproxima con un único espacio P1 sobre una malla conforme;
+    6 : // por ello es continua en las interfaces. El cambio de conductividad produce el
+    7 : // cambio de pendiente esperado en las isotermas y conserva el flujo normal.
+    8 : 
+    9 : int r = getARGV("-r", 1);
+   10 : real dt = getARGV("-dt", 2.0);
+   11 : real tFinal = getARGV("-tfinal", 360.0);
+   12 : real saveEvery = getARGV("-saveEvery", 30.0);
+   13 : real tolNL = getARGV("-tolNL", 1.0e-8);
+   14 : int maxIterNL = getARGV("-maxIterNL", 30);
+   15 : 
+   16 : int nx        = 100*r;
+   17 : int nyAire    = 60*r;
+   18 : int nyForjado = 5*r;
+   19 : int nyEPS     = 2*r;
+   20 : int nyBaldosa = 1*r;
+   21 : 
+   22 : // Orden de etiquetas de square: inferior, derecha, superior, izquierda.
+   23 : int[int] labAire    = [5, 2, 6, 2];
+   24 : int[int] labForjado = [6, 3, 7, 3];
+   25 : int[int] labEPS     = [7, 3, 8, 3];
+   26 : int[int] labBaldosa = [8, 3, 4, 3];
+   27 : 
+   28 : mesh mallaAire = square(
+   29 :     nx, nyAire,
+   30 :     [1000.0*x, -600.0 + 600.0*y],
+   31 :     label=labAire, region=10, flags=1
+   32 : );
+   33 : 
+   34 : mesh mallaForjado = square(
+   35 :     nx, nyForjado,
+   36 :     [1000.0*x, 25.0*y],
+   37 :     label=labForjado, region=20, flags=1
+   38 : );
+   39 : 
+   40 : mesh mallaEPS = square(
+   41 :     nx, nyEPS,
+   42 :     [1000.0*x, 25.0 + 6.0*y],
+   43 :     label=labEPS, region=30, flags=1
+   44 : );
+   45 : 
+   46 : mesh mallaBaldosa = square(
+   47 :     nx, nyBaldosa,
+   48 :     [1000.0*x, 31.0 + 3.0*y],
+   49 :     label=labBaldosa, region=40, flags=1
+   50 : );
+   51 : 
+   52 : mesh Th = mallaAire + mallaForjado + mallaEPS + mallaBaldosa;
+   53 : savemesh(Th, "malla_forjado_r"+r+".mesh");
+   54 : 
+   55 : fespace P0h(Th, P0);
+   56 : fespace Vh(Th, P1);
+   57 : 
+   58 : P0h reg = region;
+   59 : int matBaldosa = reg(75.0, 32.0);
+   60 : int matEPS     = reg(75.0, 28.0);
+   61 : int matForjado = reg(75.0, 10.0);
+   62 : int matAire    = reg(75.0, -100.0);
+   63 : 
+   64 : // Conductividad en W/(cm K).
+   65 : P0h k =
+   66 :       0.0100000*(region == matBaldosa)
+   67 :     + 0.0002900*(region == matEPS)
+   68 :     + 0.0025600*(region == matForjado)
+   69 :     + 0.0002624*(region == matAire);
+   70 : 
+   71 : // Capacidad calorífica volumétrica rho*cp en J/(cm^3 K).
+   72 : P0h rhoCp =
+   73 :       0.00184800*(region == matBaldosa)
+   74 :     + 0.00003500*(region == matEPS)
+   75 :     + 0.00117600*(region == matForjado)
+   76 :     + 0.00000118*(region == matAire);
+   77 : 
+   78 : real TExterior = 27.0 + 273.15;
+   79 : real TSuelo    = 20.9 + 273.15;
+   80 : real sigma     = 5.6704e-8*1.0e-4; // W/(cm^2 K^4)
+   81 : real emisividad = 0.8;
+   82 : real TCielo = 0.0552*TExterior^1.5;
+   83 : real viento = 4.0;
+   84 : real hExt = (5.7 + 3.8*viento)*1.0e-4; // W/(cm^2 K)
+   85 : real absortividad = 1.0 - 0.80;
+   86 : real radiacionSolar = 771.0*1.0e-4; // W/cm^2
+   87 : 
+   88 : Vh T = TExterior;
+   89 : Vh TAnterior = TExterior;
+   90 : Vh TIter = TExterior;
+   91 : Vh v, B, error, TC;
+   92 : 
+   93 : problem pasoTermico(T, v, init=0, solver=sparsesolver) =
+   94 :       int2d(Th)(rhoCp*T*v/dt)
+   95 :     + int2d(Th)(k*(dx(T)*dx(v) + dy(T)*dy(v)))
+   96 :     + int1d(Th, 4)(sigma*emisividad*B*T*v)
+   97 :     + int1d(Th, 2, 3, 4)(hExt*T*v)
+   98 :     - int2d(Th)(rhoCp*TAnterior*v/dt)
+   99 :     - int1d(Th, 4)(sigma*emisividad*B*TCielo*v)
+  100 :     - int1d(Th, 2, 3, 4)(hExt*TExterior*v)
+  101 :     - int1d(Th, 4)(absortividad*radiacionSolar*v)
+  102 :     + on(5, T=TSuelo);
+  103 : 
+  104 : real areaDominio = int2d(Th)(1.0);
+  105 : int nSteps = max(1, int(tFinal/dt + 0.5));
+  106 : int saveStride = max(1, int(saveEvery/dt + 0.5));
+  107 : int[int] vtkOrder = [1];
+  108 : 
+  109 : ofstream historia("historia_termica_r"+r+".csv");
+  110 : historia
+  111 :     << "tiempo_s;iteraciones_no_lineales;error_no_lineal_
+  ... : relativo;"
+  112 :     << "incremento_RMS_K;Tmin_C;Tmax_C;T_cubierta_C;"
+  113 :     << "T_baldosa_EPS_C;T_EPS_forjado_C;T_forjado_aire_C"
+  114 :     << endl;
+  115 : 
+  116 : TC = TAnterior - 273.15;
+  117 : savevtk(
+  118 :     "temperatura_r"+r+"_t0000.vtk",
+  119 :     Th, TC,
+  120 :     order=vtkOrder,
+  121 :     dataname="temperatura_C"
+  122 : );
+  123 : 
+  124 : cout << "=============================================" << endl;
+  125 : cout << "CASO EVOLUTIVO DEL FORJADO" << endl;
+  126 : cout << "r=" << r << "; vertices=" << Th.nv
+  127 :      << "; triangulos=" << Th.nt << endl;
+  128 : cout << "dt=" << dt << " s; tFinal=" << tFinal << " s" << endl;
+  129 : cout << "=============================================" << endl;
+  130 : 
+  131 : for (int paso = 1; paso <= nSteps; ++paso)
+  132 : {
+  133 :     real tiempo = paso*dt;
+  134 :     TIter = TAnterior;
+  135 :     T = TIter;
+  136 : 
+  137 :     real errorNL = 1.0;
+  138 :     real incrementoRMS = 0.0;
+  139 :     int iterNL = 0;
+  140 : 
+  141 :     while ((errorNL > tolNL) && (iterNL < maxIterNL))
+  142 :     {
+  143 :         B = (TIter^2 + TCielo^2)*(TIter + TCielo);
+  144 :         pasoTermico;
+  145 : 
+  146 :         error = T - TIter;
+  147 :         real normaError2 = int2d(Th)(error^2);
+  148 :         real normaT2 = int2d(Th)(T^2);
+  149 :         errorNL = sqrt(normaError2/max(normaT2, 1.0e-30));
+  150 :         incrementoRMS = sqrt(normaError2/areaDominio);
+  151 : 
+  152 :         TIter = T;
+  153 :         iterNL += 1;
+  154 :     }
+  155 : 
+  156 :     if (iterNL >= maxIterNL)
+  157 :     {
+  158 :         cout << "AVISO: maxIterNL alcanzado en t=" << tiempo
+  159 :              << " s; errorNL=" << errorNL << endl;
+  160 :     }
+  161 : 
+  162 :     TAnterior = T;
+  163 :     TC = T - 273.15;
+  164 : 
+  165 :     historia
+  166 :         << tiempo << ";"
+  167 :         << iterNL << ";"
+  168 :         << errorNL << ";"
+  169 :         << incrementoRMS << ";"
+  170 :         << TC[].min << ";"
+  171 :         << TC[].max << ";"
+  172 :         << T(300.0,34.0)-273.15 << ";"
+  173 :         << T(300.0,31.0)-273.15 << ";"
+  174 :         << T(300.0,25.0)-273.15 << ";"
+  175 :         << T(300.0,0.0)-273.15
+  176 :         << endl;
+  177 : 
+  178 :     if ((paso % saveStride == 0) || (paso == nSteps))
+  179 :     {
+  180 :         int etiquetaTiempo = int(tiempo + 0.5);
+  181 :         string nombreVTK =
+  182 :             "temperatura_r"+r+"_t"+etiquetaTiempo+"s.vtk";
+  183 :         savevtk(
+  184 :             nombreVTK,
+  185 :             Th, TC,
+  186 :             order=vtkOrder,
+  187 :             dataname="temperatura_C"
+  188 :         );
+  189 : 
+  190 :         cout << "t=" << tiempo << " s; iterNL=" << iterNL
+  191 :              << "; errorNL=" << errorNL
+  192 :              << "; Tmin=" << TC[].min
+  193 :              << " C; Tmax=" << TC[].max << " C" << endl;
+  194 :     }
+  195 : }
+  196 : 
+  197 : TC = T - 273.15;
+  198 : savevtk(
+  199 :     "temperatura_final_r"+r+".vtk",
+  200 :     Th, TC,
+  201 :     order=vtkOrder,
+  202 :     dataname="temperatura_C"
+  203 : );
+  204 : 
+  205 : plot(
+  206 :     TC,
+  207 :     fill=1,
+  208 :     value=1,
+  209 :     nbiso=30,
+  210 :     wait=0,
+  211 :     cmm="Temperatura final (C), r="+r+", t="+tFinal+" s",
+  212 :     ps="isotermas_final_r"+r+".eps"
+  213 : );
+  214 : 
+  215 : cout << "RESULTADO FINAL r=" << r
+  216 :      << "; Tmin=" << TC[].min
+  217 :      << " C; Tmax=" << TC[].max
+  218 :      << " C; VTK=temperatura_final_r" << r << ".vtk"
+  219 :      << endl;
+  220 :  sizestack + 1024 =11408  ( 10384 )
+
+  -- Square mesh : nb vertices  =6161 ,  nb triangles = 12000 ,  nb boundary edges 320
+  -- Square mesh : nb vertices  =606 ,  nb triangles = 1000 ,  nb boundary edges 210
+  -- Square mesh : nb vertices  =303 ,  nb triangles = 400 ,  nb boundary edges 204
+  -- Square mesh : nb vertices  =202 ,  nb triangles = 200 ,  nb boundary edges 202
+  number of required edges : 0
+ 0x5598d570ded0 VTK_FILE 1
+=============================================
+CASO EVOLUTIVO DEL FORJADO
+r=1; vertices=6969; triangulos=13600
+dt=2 s; tFinal=360 s
+=============================================
+  -- Solve : 
+          min 294.05  max 302.206
+  -- Solve : 
+          min 294.05  max 302.191
+  -- Solve : 
+          min 294.05  max 302.191
+  -- Solve : 
+          min 294.05  max 302.191
+  -- Solve : 
+          min 294.05  max 302.929
+  -- Solve : 
+          min 294.05  max 302.923
+  -- Solve : 
+          min 294.05  max 302.923
+  -- Solve : 
+          min 294.05  max 303.313
+  -- Solve : 
+          min 294.05  max 303.31
+  -- Solve : 
+          min 294.05  max 303.31
+  -- Solve : 
+          min 294.05  max 303.522
+  -- Solve : 
+          min 294.05  max 303.521
+  -- Solve : 
+          min 294.05  max 303.521
+  -- Solve : 
+          min 294.05  max 303.636
+  -- Solve : 
+          min 294.05  max 303.635
+  -- Solve : 
+          min 294.05  max 303.635
+  -- Solve : 
+          min 294.05  max 303.698
+  -- Solve : 
+          min 294.05  max 303.698
+  -- Solve : 
+          min 294.05  max 303.698
+  -- Solve : 
+          min 294.05  max 303.732
+  -- Solve : 
+          min 294.05  max 303.732
+  -- Solve : 
+          min 294.05  max 303.732
+  -- Solve : 
+          min 294.05  max 303.751
+  -- Solve : 
+          min 294.05  max 303.751
+  -- Solve : 
+          min 294.05  max 303.751
+  -- Solve : 
+          min 294.05  max 303.761
+  -- Solve : 
+          min 294.05  max 303.761
+  -- Solve : 
+          min 294.05  max 303.761
+  -- Solve : 
+          min 294.05  max 303.767
+  -- Solve : 
+          min 294.05  max 303.767
+  -- Solve : 
+          min 294.05  max 303.767
+  -- Solve : 
+          min 294.05  max 303.77
+  -- Solve : 
+          min 294.05  max 303.77
+  -- Solve : 
+          min 294.05  max 303.772
+  -- Solve : 
+          min 294.05  max 303.772
+  -- Solve : 
+          min 294.05  max 303.774
+  -- Solve : 
+          min 294.05  max 303.774
+  -- Solve : 
+          min 294.05  max 303.774
+  -- Solve : 
+          min 294.05  max 303.774
+  -- Solve : 
+          min 294.05  max 303.775
+  -- Solve : 
+          min 294.05  max 303.775
+ 0x5598d573bdc0 VTK_FILE 1
+t=30 s; iterNL=2; errorNL=1.41666e-09; Tmin=20.9 C; Tmax=30.6248 C
+  -- Solve : 
+          min 294.05  max 303.775
+  -- Solve : 
+          min 294.05  max 303.775
+  -- Solve : 
+          min 294.05  max 303.775
+  -- Solve : 
+          min 294.05  max 303.775
+  -- Solve : 
+          min 294.05  max 303.776
+  -- Solve : 
+          min 294.05  max 303.776
+  -- Solve : 
+          min 294.05  max 303.776
+  -- Solve : 
+          min 294.05  max 303.776
+  -- Solve : 
+          min 294.05  max 303.776
+  -- Solve : 
+          min 294.05  max 303.776
+  -- Solve : 
+          min 294.05  max 303.776
+  -- Solve : 
+          min 294.05  max 303.776
+  -- Solve : 
+          min 294.05  max 303.776
+  -- Solve : 
+          min 294.05  max 303.776
+  -- Solve : 
+          min 294.05  max 303.776
+  -- Solve : 
+          min 294.05  max 303.776
+  -- Solve : 
+          min 294.05  max 303.777
+  -- Solve : 
+          min 294.05  max 303.777
+  -- Solve : 
+          min 294.05  max 303.777
+  -- Solve : 
+          min 294.05  max 303.777
+  -- Solve : 
+          min 294.05  max 303.777
+  -- Solve : 
+          min 294.05  max 303.777
+  -- Solve : 
+          min 294.05  max 303.777
+  -- Solve : 
+          min 294.05  max 303.777
+  -- Solve : 
+          min 294.05  max 303.777
+  -- Solve : 
+          min 294.05  max 303.777
+  -- Solve : 
+          min 294.05  max 303.777
+  -- Solve : 
+          min 294.05  max 303.777
+  -- Solve : 
+          min 294.05  max 303.777
+  -- Solve : 
+          min 294.05  max 303.777
+ 0x5598d572e460 VTK_FILE 1
+t=60 s; iterNL=2; errorNL=3.71705e-10; Tmin=20.9 C; Tmax=30.6273 C
+  -- Solve : 
+          min 294.05  max 303.777
+  -- Solve : 
+          min 294.05  max 303.777
+  -- Solve : 
+          min 294.05  max 303.777
+  -- Solve : 
+          min 294.05  max 303.777
+  -- Solve : 
+          min 294.05  max 303.778
+  -- Solve : 
+          min 294.05  max 303.778
+  -- Solve : 
+          min 294.05  max 303.778
+  -- Solve : 
+          min 294.05  max 303.778
+  -- Solve : 
+          min 294.05  max 303.778
+  -- Solve : 
+          min 294.05  max 303.778
+  -- Solve : 
+          min 294.05  max 303.778
+  -- Solve : 
+          min 294.05  max 303.778
+  -- Solve : 
+          min 294.05  max 303.778
+  -- Solve : 
+          min 294.05  max 303.778
+  -- Solve : 
+          min 294.05  max 303.778
+  -- Solve : 
+          min 294.05  max 303.778
+  -- Solve : 
+          min 294.05  max 303.778
+  -- Solve : 
+          min 294.05  max 303.778
+  -- Solve : 
+          min 294.05  max 303.778
+  -- Solve : 
+          min 294.05  max 303.778
+  -- Solve : 
+          min 294.05  max 303.778
+  -- Solve : 
+          min 294.05  max 303.778
+  -- Solve : 
+          min 294.05  max 303.778
+  -- Solve : 
+          min 294.05  max 303.778
+  -- Solve : 
+          min 294.05  max 303.778
+  -- Solve : 
+          min 294.05  max 303.778
+  -- Solve : 
+          min 294.05  max 303.778
+  -- Solve : 
+          min 294.05  max 303.778
+  -- Solve : 
+          min 294.05  max 303.778
+  -- Solve : 
+          min 294.05  max 303.778
+ 0x5598d5730340 VTK_FILE 1
+t=90 s; iterNL=2; errorNL=2.85546e-10; Tmin=20.9 C; Tmax=30.6284 C
+  -- Solve : 
+          min 294.05  max 303.779
+  -- Solve : 
+          min 294.05  max 303.779
+  -- Solve : 
+          min 294.05  max 303.779
+  -- Solve : 
+          min 294.05  max 303.779
+  -- Solve : 
+          min 294.05  max 303.779
+  -- Solve : 
+          min 294.05  max 303.779
+  -- Solve : 
+          min 294.05  max 303.779
+  -- Solve : 
+          min 294.05  max 303.779
+  -- Solve : 
+          min 294.05  max 303.779
+  -- Solve : 
+          min 294.05  max 303.779
+  -- Solve : 
+          min 294.05  max 303.779
+  -- Solve : 
+          min 294.05  max 303.779
+  -- Solve : 
+          min 294.05  max 303.779
+  -- Solve : 
+          min 294.05  max 303.779
+  -- Solve : 
+          min 294.05  max 303.779
+  -- Solve : 
+          min 294.05  max 303.779
+  -- Solve : 
+          min 294.05  max 303.779
+  -- Solve : 
+          min 294.05  max 303.779
+  -- Solve : 
+          min 294.05  max 303.779
+  -- Solve : 
+          min 294.05  max 303.779
+  -- Solve : 
+          min 294.05  max 303.779
+  -- Solve : 
+          min 294.05  max 303.779
+  -- Solve : 
+          min 294.05  max 303.779
+  -- Solve : 
+          min 294.05  max 303.779
+  -- Solve : 
+          min 294.05  max 303.779
+  -- Solve : 
+          min 294.05  max 303.779
+  -- Solve : 
+          min 294.05  max 303.779
+  -- Solve : 
+          min 294.05  max 303.779
+  -- Solve : 
+          min 294.05  max 303.779
+  -- Solve : 
+          min 294.05  max 303.779
+ 0x5598d5730b80 VTK_FILE 1
+t=120 s; iterNL=2; errorNL=2.50051e-10; Tmin=20.9 C; Tmax=30.6293 C
+  -- Solve : 
+          min 294.05  max 303.779
+  -- Solve : 
+          min 294.05  max 303.779
+  -- Solve : 
+          min 294.05  max 303.779
+  -- Solve : 
+          min 294.05  max 303.779
+  -- Solve : 
+          min 294.05  max 303.779
+  -- Solve : 
+          min 294.05  max 303.779
+  -- Solve : 
+          min 294.05  max 303.779
+  -- Solve : 
+          min 294.05  max 303.779
+  -- Solve : 
+          min 294.05  max 303.78
+  -- Solve : 
+          min 294.05  max 303.78
+  -- Solve : 
+          min 294.05  max 303.78
+  -- Solve : 
+          min 294.05  max 303.78
+  -- Solve : 
+          min 294.05  max 303.78
+  -- Solve : 
+          min 294.05  max 303.78
+  -- Solve : 
+          min 294.05  max 303.78
+  -- Solve : 
+          min 294.05  max 303.78
+  -- Solve : 
+          min 294.05  max 303.78
+  -- Solve : 
+          min 294.05  max 303.78
+  -- Solve : 
+          min 294.05  max 303.78
+  -- Solve : 
+          min 294.05  max 303.78
+  -- Solve : 
+          min 294.05  max 303.78
+  -- Solve : 
+          min 294.05  max 303.78
+  -- Solve : 
+          min 294.05  max 303.78
+  -- Solve : 
+          min 294.05  max 303.78
+  -- Solve : 
+          min 294.05  max 303.78
+  -- Solve : 
+          min 294.05  max 303.78
+  -- Solve : 
+          min 294.05  max 303.78
+  -- Solve : 
+          min 294.05  max 303.78
+  -- Solve : 
+          min 294.05  max 303.78
+  -- Solve : 
+          min 294.05  max 303.78
+ 0x5598d57317c0 VTK_FILE 1
+t=150 s; iterNL=2; errorNL=2.31186e-10; Tmin=20.9 C; Tmax=30.63 C
+  -- Solve : 
+          min 294.05  max 303.78
+  -- Solve : 
+          min 294.05  max 303.78
+  -- Solve : 
+          min 294.05  max 303.78
+  -- Solve : 
+          min 294.05  max 303.78
+  -- Solve : 
+          min 294.05  max 303.78
+  -- Solve : 
+          min 294.05  max 303.78
+  -- Solve : 
+          min 294.05  max 303.78
+  -- Solve : 
+          min 294.05  max 303.78
+  -- Solve : 
+          min 294.05  max 303.78
+  -- Solve : 
+          min 294.05  max 303.78
+  -- Solve : 
+          min 294.05  max 303.78
+  -- Solve : 
+          min 294.05  max 303.78
+  -- Solve : 
+          min 294.05  max 303.78
+  -- Solve : 
+          min 294.05  max 303.78
+  -- Solve : 
+          min 294.05  max 303.78
+  -- Solve : 
+          min 294.05  max 303.78
+  -- Solve : 
+          min 294.05  max 303.78
+  -- Solve : 
+          min 294.05  max 303.78
+  -- Solve : 
+          min 294.05  max 303.78
+  -- Solve : 
+          min 294.05  max 303.78
+  -- Solve : 
+          min 294.05  max 303.78
+  -- Solve : 
+          min 294.05  max 303.78
+  -- Solve : 
+          min 294.05  max 303.78
+  -- Solve : 
+          min 294.05  max 303.78
+  -- Solve : 
+          min 294.05  max 303.781
+  -- Solve : 
+          min 294.05  max 303.781
+  -- Solve : 
+          min 294.05  max 303.781
+  -- Solve : 
+          min 294.05  max 303.781
+  -- Solve : 
+          min 294.05  max 303.781
+  -- Solve : 
+          min 294.05  max 303.781
+ 0x5598d5739b90 VTK_FILE 1
+t=180 s; iterNL=2; errorNL=2.18139e-10; Tmin=20.9 C; Tmax=30.6306 C
+  -- Solve : 
+          min 294.05  max 303.781
+  -- Solve : 
+          min 294.05  max 303.781
+  -- Solve : 
+          min 294.05  max 303.781
+  -- Solve : 
+          min 294.05  max 303.781
+  -- Solve : 
+          min 294.05  max 303.781
+  -- Solve : 
+          min 294.05  max 303.781
+  -- Solve : 
+          min 294.05  max 303.781
+  -- Solve : 
+          min 294.05  max 303.781
+  -- Solve : 
+          min 294.05  max 303.781
+  -- Solve : 
+          min 294.05  max 303.781
+  -- Solve : 
+          min 294.05  max 303.781
+  -- Solve : 
+          min 294.05  max 303.781
+  -- Solve : 
+          min 294.05  max 303.781
+  -- Solve : 
+          min 294.05  max 303.781
+  -- Solve : 
+          min 294.05  max 303.781
+  -- Solve : 
+          min 294.05  max 303.781
+  -- Solve : 
+          min 294.05  max 303.781
+  -- Solve : 
+          min 294.05  max 303.781
+  -- Solve : 
+          min 294.05  max 303.781
+  -- Solve : 
+          min 294.05  max 303.781
+  -- Solve : 
+          min 294.05  max 303.781
+  -- Solve : 
+          min 294.05  max 303.781
+  -- Solve : 
+          min 294.05  max 303.781
+  -- Solve : 
+          min 294.05  max 303.781
+  -- Solve : 
+          min 294.05  max 303.781
+  -- Solve : 
+          min 294.05  max 303.781
+  -- Solve : 
+          min 294.05  max 303.781
+  -- Solve : 
+          min 294.05  max 303.781
+  -- Solve : 
+          min 294.05  max 303.781
+  -- Solve : 
+          min 294.05  max 303.781
+ 0x5598d573a1d0 VTK_FILE 1
+t=210 s; iterNL=2; errorNL=2.07361e-10; Tmin=20.9 C; Tmax=30.6311 C
+  -- Solve : 
+          min 294.05  max 303.781
+  -- Solve : 
+          min 294.05  max 303.781
+  -- Solve : 
+          min 294.05  max 303.781
+  -- Solve : 
+          min 294.05  max 303.781
+  -- Solve : 
+          min 294.05  max 303.781
+  -- Solve : 
+          min 294.05  max 303.781
+  -- Solve : 
+          min 294.05  max 303.781
+  -- Solve : 
+          min 294.05  max 303.781
+  -- Solve : 
+          min 294.05  max 303.781
+  -- Solve : 
+          min 294.05  max 303.781
+  -- Solve : 
+          min 294.05  max 303.781
+  -- Solve : 
+          min 294.05  max 303.781
+  -- Solve : 
+          min 294.05  max 303.781
+  -- Solve : 
+          min 294.05  max 303.781
+  -- Solve : 
+          min 294.05  max 303.781
+  -- Solve : 
+          min 294.05  max 303.781
+  -- Solve : 
+          min 294.05  max 303.781
+  -- Solve : 
+          min 294.05  max 303.781
+  -- Solve : 
+          min 294.05  max 303.781
+  -- Solve : 
+          min 294.05  max 303.781
+  -- Solve : 
+          min 294.05  max 303.781
+  -- Solve : 
+          min 294.05  max 303.781
+  -- Solve : 
+          min 294.05  max 303.781
+  -- Solve : 
+          min 294.05  max 303.781
+  -- Solve : 
+          min 294.05  max 303.781
+  -- Solve : 
+          min 294.05  max 303.781
+  -- Solve : 
+          min 294.05  max 303.782
+  -- Solve : 
+          min 294.05  max 303.782
+  -- Solve : 
+          min 294.05  max 303.782
+  -- Solve : 
+          min 294.05  max 303.782
+ 0x5598d572fb50 VTK_FILE 1
+t=240 s; iterNL=2; errorNL=1.97674e-10; Tmin=20.9 C; Tmax=30.6316 C
+  -- Solve : 
+          min 294.05  max 303.782
+  -- Solve : 
+          min 294.05  max 303.782
+  -- Solve : 
+          min 294.05  max 303.782
+  -- Solve : 
+          min 294.05  max 303.782
+  -- Solve : 
+          min 294.05  max 303.782
+  -- Solve : 
+          min 294.05  max 303.782
+  -- Solve : 
+          min 294.05  max 303.782
+  -- Solve : 
+          min 294.05  max 303.782
+  -- Solve : 
+          min 294.05  max 303.782
+  -- Solve : 
+          min 294.05  max 303.782
+  -- Solve : 
+          min 294.05  max 303.782
+  -- Solve : 
+          min 294.05  max 303.782
+  -- Solve : 
+          min 294.05  max 303.782
+  -- Solve : 
+          min 294.05  max 303.782
+  -- Solve : 
+          min 294.05  max 303.782
+  -- Solve : 
+          min 294.05  max 303.782
+  -- Solve : 
+          min 294.05  max 303.782
+  -- Solve : 
+          min 294.05  max 303.782
+  -- Solve : 
+          min 294.05  max 303.782
+  -- Solve : 
+          min 294.05  max 303.782
+  -- Solve : 
+          min 294.05  max 303.782
+  -- Solve : 
+          min 294.05  max 303.782
+  -- Solve : 
+          min 294.05  max 303.782
+  -- Solve : 
+          min 294.05  max 303.782
+  -- Solve : 
+          min 294.05  max 303.782
+  -- Solve : 
+          min 294.05  max 303.782
+  -- Solve : 
+          min 294.05  max 303.782
+  -- Solve : 
+          min 294.05  max 303.782
+  -- Solve : 
+          min 294.05  max 303.782
+  -- Solve : 
+          min 294.05  max 303.782
+ 0x5598d572f990 VTK_FILE 1
+t=270 s; iterNL=2; errorNL=1.88669e-10; Tmin=20.9 C; Tmax=30.632 C
+  -- Solve : 
+          min 294.05  max 303.782
+  -- Solve : 
+          min 294.05  max 303.782
+  -- Solve : 
+          min 294.05  max 303.782
+  -- Solve : 
+          min 294.05  max 303.782
+  -- Solve : 
+          min 294.05  max 303.782
+  -- Solve : 
+          min 294.05  max 303.782
+  -- Solve : 
+          min 294.05  max 303.782
+  -- Solve : 
+          min 294.05  max 303.782
+  -- Solve : 
+          min 294.05  max 303.782
+  -- Solve : 
+          min 294.05  max 303.782
+  -- Solve : 
+          min 294.05  max 303.782
+  -- Solve : 
+          min 294.05  max 303.782
+  -- Solve : 
+          min 294.05  max 303.782
+  -- Solve : 
+          min 294.05  max 303.782
+  -- Solve : 
+          min 294.05  max 303.782
+  -- Solve : 
+          min 294.05  max 303.782
+  -- Solve : 
+          min 294.05  max 303.782
+  -- Solve : 
+          min 294.05  max 303.782
+  -- Solve : 
+          min 294.05  max 303.782
+  -- Solve : 
+          min 294.05  max 303.782
+  -- Solve : 
+          min 294.05  max 303.782
+  -- Solve : 
+          min 294.05  max 303.782
+  -- Solve : 
+          min 294.05  max 303.782
+  -- Solve : 
+          min 294.05  max 303.782
+  -- Solve : 
+          min 294.05  max 303.782
+  -- Solve : 
+          min 294.05  max 303.782
+  -- Solve : 
+          min 294.05  max 303.782
+  -- Solve : 
+          min 294.05  max 303.782
+  -- Solve : 
+          min 294.05  max 303.782
+  -- Solve : 
+          min 294.05  max 303.782
+ 0x5598d59ae150 VTK_FILE 1
+t=300 s; iterNL=2; errorNL=1.8019e-10; Tmin=20.9 C; Tmax=30.6323 C
+  -- Solve : 
+          min 294.05  max 303.782
+  -- Solve : 
+          min 294.05  max 303.782
+  -- Solve : 
+          min 294.05  max 303.782
+  -- Solve : 
+          min 294.05  max 303.782
+  -- Solve : 
+          min 294.05  max 303.782
+  -- Solve : 
+          min 294.05  max 303.782
+  -- Solve : 
+          min 294.05  max 303.782
+  -- Solve : 
+          min 294.05  max 303.782
+  -- Solve : 
+          min 294.05  max 303.782
+  -- Solve : 
+          min 294.05  max 303.782
+  -- Solve : 
+          min 294.05  max 303.782
+  -- Solve : 
+          min 294.05  max 303.782
+  -- Solve : 
+          min 294.05  max 303.783
+  -- Solve : 
+          min 294.05  max 303.783
+  -- Solve : 
+          min 294.05  max 303.783
+  -- Solve : 
+          min 294.05  max 303.783
+  -- Solve : 
+          min 294.05  max 303.783
+  -- Solve : 
+          min 294.05  max 303.783
+  -- Solve : 
+          min 294.05  max 303.783
+  -- Solve : 
+          min 294.05  max 303.783
+  -- Solve : 
+          min 294.05  max 303.783
+  -- Solve : 
+          min 294.05  max 303.783
+  -- Solve : 
+          min 294.05  max 303.783
+  -- Solve : 
+          min 294.05  max 303.783
+  -- Solve : 
+          min 294.05  max 303.783
+  -- Solve : 
+          min 294.05  max 303.783
+  -- Solve : 
+          min 294.05  max 303.783
+  -- Solve : 
+          min 294.05  max 303.783
+  -- Solve : 
+          min 294.05  max 303.783
+  -- Solve : 
+          min 294.05  max 303.783
+ 0x5598d573a7c0 VTK_FILE 1
+t=330 s; iterNL=2; errorNL=1.72166e-10; Tmin=20.9 C; Tmax=30.6327 C
+  -- Solve : 
+          min 294.05  max 303.783
+  -- Solve : 
+          min 294.05  max 303.783
+  -- Solve : 
+          min 294.05  max 303.783
+  -- Solve : 
+          min 294.05  max 303.783
+  -- Solve : 
+          min 294.05  max 303.783
+  -- Solve : 
+          min 294.05  max 303.783
+  -- Solve : 
+          min 294.05  max 303.783
+  -- Solve : 
+          min 294.05  max 303.783
+  -- Solve : 
+          min 294.05  max 303.783
+  -- Solve : 
+          min 294.05  max 303.783
+  -- Solve : 
+          min 294.05  max 303.783
+  -- Solve : 
+          min 294.05  max 303.783
+  -- Solve : 
+          min 294.05  max 303.783
+  -- Solve : 
+          min 294.05  max 303.783
+  -- Solve : 
+          min 294.05  max 303.783
+  -- Solve : 
+          min 294.05  max 303.783
+  -- Solve : 
+          min 294.05  max 303.783
+  -- Solve : 
+          min 294.05  max 303.783
+  -- Solve : 
+          min 294.05  max 303.783
+  -- Solve : 
+          min 294.05  max 303.783
+  -- Solve : 
+          min 294.05  max 303.783
+  -- Solve : 
+          min 294.05  max 303.783
+  -- Solve : 
+          min 294.05  max 303.783
+  -- Solve : 
+          min 294.05  max 303.783
+  -- Solve : 
+          min 294.05  max 303.783
+  -- Solve : 
+          min 294.05  max 303.783
+  -- Solve : 
+          min 294.05  max 303.783
+  -- Solve : 
+          min 294.05  max 303.783
+  -- Solve : 
+          min 294.05  max 303.783
+  -- Solve : 
+          min 294.05  max 303.783
+ 0x5598d573b6a0 VTK_FILE 1
+t=360 s; iterNL=2; errorNL=1.64551e-10; Tmin=20.9 C; Tmax=30.633 C
+ 0x5598d573a1d0 VTK_FILE 1
+RESULTADO FINAL r=1; Tmin=20.9 C; Tmax=30.633 C; VTK=temperatura_final_r1.vtk
+times: compile 0.02874s, execution 40.9894s,  mpirank:0
+ CodeAlloc : nb ptr  5062,  size :555728 mpirank: 0
+Ok: Normal End
